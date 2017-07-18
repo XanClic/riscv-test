@@ -13,6 +13,9 @@ SECTIONS {
     .data ALIGN(4096) : AT(ADDR(.data)) {
         *(.data)
     }
+    htif ALIGN(8) : AT(ADDR(htif)) {
+        *(htif)
+    }
     .bss ALIGN(4096) : AT(ADDR(.bss)) {
         *(.bss)
     }
