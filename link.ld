@@ -1,6 +1,8 @@
+DRAM_BASE = 0x80000000;
+
 ENTRY(_start)
 SECTIONS {
-    . = 0x1000;
+    . = DRAM_BASE;
 
     .text : AT(ADDR(.text)) {
         *(.text)
