@@ -10,7 +10,12 @@ la      sp, stack
 
 call    main
 
+// Disable interrupts
+li      t0, 0x38
+csrc    mstatus, t0
+
 hang:
+wfi
 j       hang
 
 
