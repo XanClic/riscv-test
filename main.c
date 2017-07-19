@@ -5,6 +5,8 @@ typedef unsigned long uint64_t;
 typedef unsigned long uintptr_t;
 typedef unsigned long size_t;
 
+typedef unsigned long base_int_t;
+
 
 typedef __builtin_va_list va_list;
 
@@ -135,12 +137,21 @@ void __attribute__((format(printf, 1, 2))) kprintf(const char *format, ...)
                     break;
 
                 case 'z':
-                    if (*(format++) != 'u') {
-                        unhandled = true;
-                        break;
-                    }
+                    switch (*(format++)) {
+                        case 'u':
+                            putu(va_arg(ap, size_t), 10);
+                            break;
 
-                    putu(va_arg(ap, size_t), 10);
+                        case 'x':
+                            putchar('0');
+                            putchar('x');
+                            putu(va_arg(ap, size_t), 16);
+                            break;
+
+                        default:
+                            unhandled = true;
+                            break;
+                    }
                     break;
 
                 case 'p':
@@ -165,7 +176,26 @@ void __attribute__((format(printf, 1, 2))) kprintf(const char *format, ...)
 }
 
 
+static inline base_int_t read_csr(unsigned index)
+{
+    base_int_t result;
+    __asm__ __volatile__ ("csrr %0, %1" : "=r"(result) : "i"(index));
+    return result;
+}
+
+
 void main(void)
 {
     puts("Hello, RISC-V world!");
+
+    base_int_t misa = read_csr(0x301);
+    int mxl = misa >> (sizeof(base_int_t) * 8 - 2);
+
+    kprintf("CPU model: RV%i", 16 << mxl);
+    for (int i = 0; i < 26; i++) {
+        if (misa & (1 << i)) {
+            putchar(i + 'A');
+        }
+    }
+    putchar('\n');
 }
