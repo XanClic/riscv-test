@@ -1,5 +1,26 @@
 typedef unsigned char uint8_t;
 typedef unsigned int  uint32_t;
+typedef unsigned long uint64_t;
+
+typedef unsigned long uintptr_t;
+typedef unsigned long size_t;
+
+
+typedef __builtin_va_list va_list;
+
+#define va_start(v, l) __builtin_va_start(v,l)
+#define va_end(v)      __builtin_va_end(v)
+#define va_arg(v, l)   __builtin_va_arg(v,l)
+#define va_copy(d, s)  __builtin_va_copy(d,s)
+
+
+#define bool _Bool
+#define false 0
+#define true  1
+#define __bool_true_false_are_defined 1
+
+
+#define assert(x) do { } while (0)
 
 
 struct htif_register {
@@ -43,6 +64,104 @@ void puts(const char *str)
         putchar(*(str++));
     }
     putchar('\n');
+}
+
+
+void putu(unsigned long long x, int base)
+{
+    char buffer[sizeof(x) * 8];
+    int bi = sizeof(buffer);
+
+    assert(base >= 2 && base <= 36);
+
+    if (!x) {
+        putchar('0');
+    } else {
+        while (x) {
+            int digit = x % base;
+            buffer[--bi] = digit < 10 ? digit + '0' : digit - 10 + 'a';
+            x /= base;
+
+            assert(bi >= 0);
+        }
+
+        while (bi < (int)sizeof(buffer)) {
+            putchar(buffer[bi++]);
+        }
+    }
+}
+
+
+void puti(long long x, int base)
+{
+    if (x < 0) {
+        putchar('-');
+        x = -x;
+    }
+    putu(x, base);
+}
+
+
+void __attribute__((format(printf, 1, 2))) kprintf(const char *format, ...)
+{
+    va_list ap;
+
+    va_start(ap, format);
+
+    while (*format) {
+        if (*format != '%') {
+            putchar(*(format++));
+        } else {
+            bool unhandled = false;
+            const char *fbase = format + 1;
+
+            format++;
+
+            switch (*(format++)) {
+                case '%':
+                    putchar('%');
+                    break;
+
+                case 's': {
+                    const char *s = va_arg(ap, const char *);
+                    while (*s) {
+                        putchar(*(s++));
+                    }
+                    break;
+                }
+
+                case 'i':
+                    puti(va_arg(ap, int), 10);
+                    break;
+
+                case 'z':
+                    if (*(format++) != 'u') {
+                        unhandled = true;
+                        break;
+                    }
+
+                    putu(va_arg(ap, size_t), 10);
+                    break;
+
+                case 'p':
+                    putchar('0');
+                    putchar('x');
+                    putu((uintptr_t)va_arg(ap, void *), 16);
+                    break;
+
+                default:
+                    unhandled = true;
+                    break;
+            }
+
+            if (unhandled) {
+                putchar('%');
+                format = fbase;
+            }
+        }
+    }
+
+    va_end(ap);
 }
 
 
