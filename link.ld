@@ -10,6 +10,9 @@ SECTIONS {
     .rodata ALIGN(4096) : AT(ADDR(.rodata)) {
         *(.rodata)
     }
+
+    . = ALIGN(4096);
+
     .data ALIGN(4096) : AT(ADDR(.data)) {
         *(.data)
     }
