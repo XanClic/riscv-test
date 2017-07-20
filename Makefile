@@ -3,7 +3,7 @@ CC = /usr/riscv/bin/riscv64-unknown-elf-gcc
 LD = /usr/riscv/bin/riscv64-unknown-elf-ld
 RM = rm -f
 
-CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -Iinclude
+CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -Iinclude -g2
 ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
 OBJECTS = $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.c,%.o,$(wildcard *.c))
