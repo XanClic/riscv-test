@@ -1,6 +1,6 @@
-AS = /usr/riscv/bin/riscv64-unknown-elf-gcc
-CC = /usr/riscv/bin/riscv64-unknown-elf-gcc
-LD = /usr/riscv/bin/riscv64-unknown-elf-ld
+AS = riscv64-linux-gnu-gcc
+CC = riscv64-linux-gnu-gcc
+LD = riscv64-linux-gnu-ld
 RM = rm -f
 
 CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -Iinclude -g2
