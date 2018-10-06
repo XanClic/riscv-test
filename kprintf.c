@@ -1,9 +1,11 @@
 #include <assert.h>
 #include <htif.h>
 #include <kprintf.h>
+#include <platform.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <virt-uart.h>
 
 
 void putchar(uint8_t c)
@@ -12,8 +14,7 @@ void putchar(uint8_t c)
         putchar('\r');
     }
 
-    htif_write_to_host(HTIF_CONSOLE, HTIF_CON_WRITE, c);
-    htif_clear_from_host(); // acknowledge result
+    platform_funcs()->putchar(c);
 }
 
 

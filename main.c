@@ -1,9 +1,12 @@
 #include <cpu.h>
 #include <kprintf.h>
+#include <platform.h>
 
 
 void main(void)
 {
+    init_platform();
+
     puts("Hello, RISC-V world!");
 
     base_int_t misa = read_csr(0x301);
