@@ -1,0 +1,5 @@
+-ffreestanding
+-fno-builtin
+-nostdinc
+-Iinclude
+-std=c11
