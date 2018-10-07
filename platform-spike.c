@@ -12,7 +12,7 @@ bool init_platform_spike(void)
 {
     platform_funcs()->putchar = spike_putchar;
 
-    kprintf("Unknown platform, assuming Spike board\n");
+    puts("[platform-spike] Unknown platform, assuming Spike board");
 
     return true;
 }

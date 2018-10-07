@@ -22,7 +22,7 @@ bool init_platform_virt(void)
 
     platform_funcs()->putchar = virt_uart_putchar;
 
-    kprintf("VirtIO platform detected\n");
+    puts("[platform-virt] Virt platform detected");
 
     while (virtio_control->magic == STR_TO_U32("virt")) {
         init_virtio_device(virtio_control);
