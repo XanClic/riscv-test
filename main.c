@@ -1,6 +1,7 @@
 #include <cpu.h>
 #include <kprintf.h>
 #include <platform.h>
+#include <string.h>
 
 
 void main(void)
@@ -19,4 +20,14 @@ void main(void)
         }
     }
     putchar('\n');
+
+
+    if (platform_funcs()->framebuffer) {
+        puts("Framebuffer found, clearing it with gray");
+
+        uint32_t *fb = platform_funcs()->framebuffer();
+        memset(fb, 0x40,
+               platform_funcs()->fb_height() * platform_funcs()->fb_stride());
+        platform_funcs()->fb_flush(0, 0, 0, 0);
+    }
 }

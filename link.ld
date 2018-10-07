@@ -21,5 +21,8 @@ SECTIONS {
     }
     .bss ALIGN(4096) : AT(ADDR(.bss)) {
         *(.bss)
+        *(.sbss)
     }
+
+    __kernel_end = .;
 }

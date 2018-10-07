@@ -94,6 +94,12 @@ void __attribute__((format(printf, 1, 2))) kprintf(const char *format, ...)
                     puti(va_arg(ap, int), 10);
                     break;
 
+                case 'x':
+                    putchar('0');
+                    putchar('x');
+                    putu(va_arg(ap, int), 16);
+                    break;
+
                 case 'z':
                     switch (*(format++)) {
                         case 'u':
