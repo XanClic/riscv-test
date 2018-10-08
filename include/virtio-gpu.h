@@ -56,6 +56,7 @@ enum VirtIOGPUCtrlType {
     VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER,
 };
 
+// These are in big endian order; BGRX is qemu's default format.
 enum VirtIOGPUFormats {
     VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM = 1,
     VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM = 2,
