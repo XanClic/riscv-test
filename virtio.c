@@ -208,3 +208,24 @@ uint16_t vq_wait_used(VirtQ *vq)
 
     return next;
 }
+
+
+int vq_single_poll_used(VirtQ *vq)
+{
+    VirtQUsed(1) *used = (void *)((uintptr_t)vq->base +
+            ROUND_UP(sizeof(struct VirtQDesc) * vq->queue_size +
+                     sizeof(VirtQAvail(1)) + sizeof(uint16_t) * vq->queue_size,
+                     PAGESIZE));
+
+    uint16_t next = vq->used_i;
+
+    if (used->idx == vq->used_i) {
+        return -1;
+    }
+
+    vq->used_i++;
+
+    __sync_synchronize();
+
+    return next;
+}
