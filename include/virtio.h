@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <virtio-gpu.h>
+#include <virtio-input.h>
 
 
 struct VirtIOControlRegs {
@@ -49,6 +50,7 @@ struct VirtIOControlRegs {
     union {
         uint8_t padding[0xf00];
         struct VirtIOGPUConfig gpu;
+        struct VirtIOInputConfig input;
     };
 } __attribute__((packed, aligned(4096)));
 

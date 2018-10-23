@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <virtio.h>
 #include <virtio-gpu.h>
+#include <virtio-input.h>
 
 
 #define STR_TO_U32(str) (*(uint32_t *)str)
@@ -24,6 +25,10 @@ void init_virtio_device(struct VirtIOControlRegs *regs)
     }
 
     switch (regs->device_id) {
+        case DEVID_INPUT:
+            init_virtio_input(regs);
+            break;
+
         case DEVID_GPU:
             init_virtio_gpu(regs);
             break;
