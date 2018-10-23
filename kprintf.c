@@ -11,11 +11,15 @@
 
 void putchar(uint8_t c)
 {
+#ifdef SERIAL_IS_SOUND
+    (void)c;
+#else
     if (c == '\n') {
         putchar('\r');
     }
 
     platform_funcs()->putchar(c);
+#endif
 }
 
 
