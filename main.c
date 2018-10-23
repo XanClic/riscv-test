@@ -31,16 +31,24 @@ static int saturated_add(int x, int y, int min, int max)
 }
 
 
+#define PRINT(...) \
+    do { \
+        uint64_t time = platform_funcs()->elapsed_us(); \
+        kprintf("[%zu.%06u] ", time / 1000000, (int)(time % 1000000)); \
+        kprintf(__VA_ARGS__); \
+    } while (0)
+
+
 void main(void)
 {
     init_platform();
 
-    puts("[main] Hello, RISC-V world!");
+    PRINT("Hello, RISC-V world!\n");
 
     base_int_t misa = read_csr(0x301);
     int mxl = misa >> (sizeof(base_int_t) * 8 - 2);
 
-    kprintf("[main] CPU model: RV%i", 16 << mxl);
+    PRINT("CPU model: RV%i", 16 << mxl);
     for (int i = 0; i < 26; i++) {
         if (misa & (1 << i)) {
             putchar(i + 'A');
@@ -50,11 +58,11 @@ void main(void)
 
 
     if (!platform_funcs()->framebuffer) {
-        puts("[main] No framebuffer found, shutting down");
+        PRINT("No framebuffer found, shutting down\n");
         return;
     }
 
-    puts("[main] Framebuffer found, clearing it with gray");
+    PRINT("Framebuffer found, clearing it with gray\n");
 
     uint32_t *fb = platform_funcs()->framebuffer();
     int fbw = platform_funcs()->fb_width();
@@ -74,14 +82,15 @@ void main(void)
         bool has_button, up, button_up;
 
         if (platform_funcs()->get_keyboard_event(&key, &up)) {
-            kprintf("[main] key %i %s\n", key, up ? "up" : "down");
+            PRINT("key %i %s\n", key, up ? "up" : "down");
         }
 
         if (platform_funcs()->get_mouse_event(&dx, &dy, &has_button,
                                               &button, &button_up))
         {
             if (has_button) {
-                kprintf("[main] mouse button %i %s\n", button, button_up ? "up" : "down");
+                PRINT("mouse button %i %s\n",
+                      button, button_up ? "up" : "down");
             }
             if (dx || dy) {
                 int omx = mouse_x, omy = mouse_y;
