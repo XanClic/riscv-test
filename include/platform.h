@@ -20,6 +20,10 @@ typedef struct PlatformFuncs {
     int (*fb_height)(void);
     size_t (*fb_stride)(void);
     bool (*fb_flush)(int x, int y, int w, int h);
+
+    bool (*get_keyboard_event)(int *key, bool *up);
+    bool (*get_mouse_event)(int *dx, int *dy, bool *has_button, int *button,
+                            bool *button_up);
 } PlatformFuncs;
 
 
