@@ -108,7 +108,7 @@ void vq_push_descriptor(VirtQ *vq, void *ptr, size_t length,
 
     if (first) {
         uint16_t *avail_ring =
-            (void *)((uintptr_t)vq +
+            (void *)((uintptr_t)vq->base +
                      sizeof(struct VirtQDesc) * vq->queue_size +
                      offsetof(VirtQAvail(1), ring));
 
