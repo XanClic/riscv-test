@@ -18,6 +18,7 @@ static uint8_t vq_storage[VirtQTotalSize(QUEUE_SIZE)] \
 static VirtQ vq;
 
 static union VirtIOGPUCommand gpu_command __attribute__((aligned(4096)));
+static union VirtIOGPUCommand gpu_command2 __attribute__((aligned(4096)));
 static union VirtIOGPUResponse gpu_response __attribute__((aligned(4096)));
 
 static uint32_t *framebuffer;
@@ -26,7 +27,7 @@ static uint32_t *framebuffer;
 static struct VirtIOGPUDisplayInfo *get_display_info(void);
 static uint32_t *setup_framebuffer(int scanout, int res_id,
                                    int width, int height);
-static bool flush_framebuffer(int x, int y, int width, int height);
+static void flush_framebuffer(int x, int y, int width, int height);
 static size_t framebuffer_stride(void);
 static uint32_t *get_framebuffer(void);
 static int get_framebuffer_width(void);
@@ -114,6 +115,7 @@ static bool exec_command(void)
 
 static struct VirtIOGPUDisplayInfo *get_display_info(void)
 {
+    vq_wait_settled(&vq);
     gpu_command.hdr.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
     exec_command();
     if (gpu_response.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
@@ -127,6 +129,8 @@ static struct VirtIOGPUDisplayInfo *get_display_info(void)
 static bool create_2d_resource(int id, enum VirtIOGPUFormats format,
                                int width, int height)
 {
+    vq_wait_settled(&vq);
+
     gpu_command.res_create_2d = (struct VirtIOGPUResourceCreate2D){
         .hdr = {
             .type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D,
@@ -143,6 +147,8 @@ static bool create_2d_resource(int id, enum VirtIOGPUFormats format,
 
 static bool resource_attach_backing(int id, uintptr_t address, size_t length)
 {
+    vq_wait_settled(&vq);
+
     gpu_command.res_attach_backing = (struct VirtIOGPUResourceAttachBacking){
         .hdr = {
             .type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING,
@@ -162,6 +168,8 @@ static bool resource_attach_backing(int id, uintptr_t address, size_t length)
 
 static bool set_scanout(int scanout, int res_id, int width, int height)
 {
+    vq_wait_settled(&vq);
+
     gpu_command.set_scanout = (struct VirtIOGPUSetScanout){
         .hdr = {
             .type = VIRTIO_GPU_CMD_SET_SCANOUT,
@@ -212,7 +220,7 @@ static uint32_t *setup_framebuffer(int scanout, int res_id,
 }
 
 
-static bool flush_framebuffer(int x, int y, int width, int height)
+static void flush_framebuffer(int x, int y, int width, int height)
 {
     if (width <= 0) {
         width = fb_width;
@@ -221,7 +229,7 @@ static bool flush_framebuffer(int x, int y, int width, int height)
         height = fb_height;
     }
 
-    __sync_synchronize();
+    vq_wait_settled(&vq);
 
     gpu_command.transfer_to_host_2d = (struct VirtIOGPUTransferToHost2D){
         .hdr = {
@@ -237,11 +245,7 @@ static bool flush_framebuffer(int x, int y, int width, int height)
         .resource_id = 1,
     };
 
-    if (!exec_command()) {
-        return false;
-    }
-
-    gpu_command.res_flush = (struct VirtIOGPUResourceFlush){
+    gpu_command2.res_flush = (struct VirtIOGPUResourceFlush){
         .hdr = {
             .type = VIRTIO_GPU_CMD_RESOURCE_FLUSH,
         },
@@ -254,7 +258,21 @@ static bool flush_framebuffer(int x, int y, int width, int height)
         .resource_id = 1,
     };
 
-    return exec_command();
+    vq_push_descriptor(&vq, &gpu_command, sizeof(gpu_command),
+                       false, true, false);
+
+    vq_push_descriptor(&vq, &gpu_response, sizeof(gpu_response),
+                       true, false, true);
+
+    vq_push_descriptor(&vq, &gpu_command2, sizeof(gpu_command2),
+                       false, true, false);
+
+    // We don't care about the result anyway, might as well just
+    // overwrite the previous one
+    vq_push_descriptor(&vq, &gpu_response, sizeof(gpu_response),
+                       true, false, true);
+
+    vq_exec(&vq);
 }
 
 

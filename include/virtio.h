@@ -162,5 +162,6 @@ void vq_push_descriptor(VirtQ *vq, void *ptr, size_t length,
 void vq_exec(VirtQ *vq);
 uint16_t vq_wait_used(VirtQ *vq);
 int vq_single_poll_used(VirtQ *vq);
+void vq_wait_settled(VirtQ *vq);
 
 #endif

@@ -207,7 +207,7 @@ uint16_t vq_wait_used(VirtQ *vq)
         __asm__ __volatile__ ("" ::: "memory");
     }
 
-    while (used->idx != ++vq->used_i);
+    vq->used_i = used->idx;
 
     __sync_synchronize();
 
@@ -233,4 +233,21 @@ int vq_single_poll_used(VirtQ *vq)
     __sync_synchronize();
 
     return next;
+}
+
+
+void vq_wait_settled(VirtQ *vq)
+{
+    VirtQUsed(1) *used = (void *)((uintptr_t)vq->base +
+            ROUND_UP(sizeof(struct VirtQDesc) * vq->queue_size +
+                     sizeof(VirtQAvail(1)) + sizeof(uint16_t) * vq->queue_size,
+                     PAGESIZE));
+
+    while (used->idx != vq->avail_i) {
+        __asm__ __volatile__ ("" ::: "memory");
+    }
+
+    vq->used_i = used->idx;
+
+    __sync_synchronize();
 }
