@@ -6,6 +6,7 @@
 #endif
 
 typedef unsigned long size_t;
+typedef   signed long ssize_t;
 
 #ifndef offsetof
 #define offsetof(t, m) ((size_t)(&(((t *)0)->m)))
