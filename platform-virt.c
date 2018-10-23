@@ -1,6 +1,7 @@
 #include <platform.h>
 #include <platform-virt.h>
 #include <kprintf.h>
+#include <sifive-clint.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <virt-uart.h>
@@ -23,6 +24,8 @@ bool init_platform_virt(void)
     platform_funcs()->putchar = virt_uart_putchar;
 
     puts("[platform-virt] Virt platform detected");
+
+    init_sifive_clint(VPBA_SIFIVE_CLINT);
 
     while (virtio_control->magic == STR_TO_U32("virt")) {
         init_virtio_device(virtio_control);

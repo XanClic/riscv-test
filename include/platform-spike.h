@@ -4,6 +4,11 @@
 #include <stdbool.h>
 
 
+enum SpikePlatformBaseAddresses {
+    SPBA_SIFIVE_CLINT   = 0x02000000ul,
+};
+
+
 bool init_platform_spike(void);
 
 #endif

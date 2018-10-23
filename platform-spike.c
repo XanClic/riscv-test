@@ -1,5 +1,6 @@
 #include <htif.h>
 #include <kprintf.h>
+#include <sifive-clint.h>
 #include <platform.h>
 #include <platform-spike.h>
 #include <stdbool.h>
@@ -13,6 +14,8 @@ bool init_platform_spike(void)
     platform_funcs()->putchar = spike_putchar;
 
     puts("[platform-spike] Unknown platform, assuming Spike board");
+
+    init_sifive_clint(SPBA_SIFIVE_CLINT);
 
     return true;
 }
