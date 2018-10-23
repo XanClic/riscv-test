@@ -15,6 +15,8 @@ typedef enum PlatformType {
 typedef struct PlatformFuncs {
     void (*putchar)(uint8_t c);
 
+    uint64_t (*elapsed_us)(void);
+
     uint32_t *(*framebuffer)(void);
     int (*fb_width)(void);
     int (*fb_height)(void);
