@@ -31,6 +31,54 @@ void init_virtio_device(struct VirtIOControlRegs *regs)
 }
 
 
+int virtio_basic_negotiate(struct VirtIOControlRegs *regs, uint64_t *features)
+{
+    regs->status = DEV_STATUS_RESET;
+    __sync_synchronize();
+
+    regs->status |= DEV_STATUS_ACKNOWLEDGE;
+    __sync_synchronize();
+
+    regs->status |= DEV_STATUS_DRIVER;
+    __sync_synchronize();
+
+    uint64_t offered_features;
+
+    regs->device_features_sel = 0;
+    __sync_synchronize();
+    offered_features = regs->device_features;
+    __sync_synchronize();
+    regs->device_features_sel = 1;
+    __sync_synchronize();
+    offered_features |= (uint64_t)regs->device_features << 32;
+
+    *features &= offered_features;
+
+    regs->device_features_sel = 0;
+    __sync_synchronize();
+    regs->device_features = (uint32_t)*features;
+    __sync_synchronize();
+    regs->device_features_sel = 1;
+    __sync_synchronize();
+    regs->device_features = (uint32_t)(*features >> 32);
+    __sync_synchronize();
+
+    if (regs->version < 2 || !(*features & FF_VERSION_1)) {
+        regs->legacy_guest_page_size = PAGESIZE;
+    } else {
+        regs->status |= DEV_STATUS_FEATURES_OK;
+
+        __sync_synchronize();
+
+        if (!(regs->status & DEV_STATUS_FEATURES_OK)) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 bool vq_init(VirtQ *vq, int queue_index, void *base, int queue_size,
              volatile struct VirtIOControlRegs *regs)
 {

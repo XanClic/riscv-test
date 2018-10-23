@@ -22,7 +22,6 @@ static union VirtIOGPUResponse gpu_response __attribute__((aligned(4096)));
 static uint32_t *framebuffer;
 
 
-static int basic_negotiate(struct VirtIOControlRegs *regs);
 static struct VirtIOGPUDisplayInfo *get_display_info(void);
 static uint32_t *setup_framebuffer(int scanout, int res_id,
                                    int width, int height);
@@ -41,8 +40,10 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
 
     kprintf("[virtio-gpu] Found device @%p\n", (void *)regs);
 
-    int ret = basic_negotiate(regs);
+    uint64_t features = FF_ANY_LAYOUT | FF_VERSION_1;
+    int ret = virtio_basic_negotiate(regs, &features);
     if (ret < 0) {
+        puts("[virtio-gpu] FATAL: Failed to negotiate device features");
         return;
     }
 
@@ -91,44 +92,6 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
     platform_funcs()->fb_height = get_framebuffer_height;
     platform_funcs()->fb_stride = framebuffer_stride;
     platform_funcs()->fb_flush = flush_framebuffer;
-}
-
-
-static int basic_negotiate(struct VirtIOControlRegs *regs)
-{
-    regs->status = DEV_STATUS_RESET;
-
-    regs->status |= DEV_STATUS_ACKNOWLEDGE;
-    regs->status |= DEV_STATUS_DRIVER;
-
-    uint64_t features;
-
-    regs->device_features_sel = 0;
-    features = regs->device_features;
-    regs->device_features_sel = 1;
-    features |= (uint64_t)regs->device_features << 32;
-
-    features &= (FF_ANY_LAYOUT | FF_VERSION_1);
-
-    regs->device_features_sel = 0;
-    regs->device_features = (uint32_t)features;
-    regs->device_features_sel = 1;
-    regs->device_features = (uint32_t)(features >> 32);
-
-    if (regs->version < 2 || !(features & FF_VERSION_1)) {
-        regs->legacy_guest_page_size = PAGESIZE;
-    } else {
-        regs->status |= DEV_STATUS_FEATURES_OK;
-
-        __sync_synchronize();
-
-        if (!(regs->status & DEV_STATUS_FEATURES_OK)) {
-            puts("[virtio-gpu] Failed to negotiate device features");
-            return -1;
-        }
-    }
-
-    return 0;
 }
 
 

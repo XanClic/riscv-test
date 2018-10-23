@@ -151,6 +151,8 @@ typedef struct VirtQ {
 
 void init_virtio_device(struct VirtIOControlRegs *regs);
 
+int virtio_basic_negotiate(struct VirtIOControlRegs *regs, uint64_t *features);
+
 bool vq_init(VirtQ *vq, int queue_index, void *base, int queue_size,
              volatile struct VirtIOControlRegs *regs);
 void vq_push_descriptor(VirtQ *vq, void *ptr, size_t length,
