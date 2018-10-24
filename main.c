@@ -1,5 +1,6 @@
 #include <cpu.h>
 #include <kprintf.h>
+#include <music.h>
 #include <platform.h>
 #include <string.h>
 
@@ -37,6 +38,9 @@ static int saturated_add(int x, int y, int min, int max)
         kprintf("[%zu.%06u] ", time / 1000000, (int)(time % 1000000)); \
         kprintf(__VA_ARGS__); \
     } while (0)
+
+
+static int16_t key_sound[4000];
 
 
 void main(void)
@@ -77,12 +81,24 @@ void main(void)
     draw_cursor(fb, fb_stride, mouse_x, mouse_y, 0x80ff00);
     platform_funcs.fb_flush(mouse_x, mouse_y, CURSOR_SIZE, CURSOR_SIZE);
 
+    init_music();
+
+    int16_t sample = 0;
+    for (int i = 0; i < (int)ARRAY_SIZE(key_sound); i++) {
+        key_sound[i] = sample;
+        sample += 0x2000;
+    }
+
     for (;;) {
         int key, dx, dy, button;
         bool has_button, up, button_up;
 
         if (platform_funcs.get_keyboard_event(&key, &up)) {
             PRINT("key %i %s\n", key, up ? "up" : "down");
+            if (!up) {
+                platform_funcs.queue_audio_track(key_sound,
+                                                 ARRAY_SIZE(key_sound), NULL);
+            }
         }
 
         if (platform_funcs.get_mouse_event(&dx, &dy, &has_button,
@@ -114,5 +130,8 @@ void main(void)
                                            flrx - fulx, flry - fuly);
             }
         }
+
+        handle_music();
+        platform_funcs.handle_audio();
     }
 }
