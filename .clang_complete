@@ -3,3 +3,4 @@
 -nostdinc
 -Iinclude
 -std=c11
+-DSERIAL_IS_SOUND

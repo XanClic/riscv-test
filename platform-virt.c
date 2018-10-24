@@ -4,6 +4,7 @@
 #include <sifive-clint.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <virt-sound.h>
 #include <virt-uart.h>
 #include <virtio.h>
 #include <virtio-gpu.h>
@@ -31,6 +32,8 @@ bool init_platform_virt(void)
         init_virtio_device(virtio_control);
         virtio_control++;
     }
+
+    init_virt_sound();
 
     return true;
 }

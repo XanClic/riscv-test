@@ -6,7 +6,7 @@ RM = rm -f
 CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -g2
 ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
-# CFLAGS += -DSERIAL_IS_SOUND
+CFLAGS += -DSERIAL_IS_SOUND
 
 OBJECTS = $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.c,%.o,$(wildcard *.c))
 
