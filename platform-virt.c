@@ -21,7 +21,7 @@ bool init_platform_virt(void)
         return false;
     }
 
-    platform_funcs()->putchar = virt_uart_putchar;
+    platform_funcs.putchar = virt_uart_putchar;
 
     puts("[platform-virt] Virt platform detected");
 

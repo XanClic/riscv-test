@@ -18,7 +18,7 @@ void init_sifive_clint(uintptr_t b)
 
     base = b;
 
-    platform_funcs()->elapsed_us = elapsed_us;
+    platform_funcs.elapsed_us = elapsed_us;
 }
 
 

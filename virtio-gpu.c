@@ -35,7 +35,7 @@ static int get_framebuffer_height(void);
 
 void init_virtio_gpu(struct VirtIOControlRegs *regs)
 {
-    if (platform_funcs()->framebuffer) {
+    if (platform_funcs.framebuffer) {
         puts("[virtio-gpu] Ignoring further framebuffer device");
         return;
     }
@@ -89,11 +89,11 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
     kprintf("[virtio-gpu] Framebuffer set up @%p\n", (void *)framebuffer);
 
 
-    platform_funcs()->framebuffer = get_framebuffer;
-    platform_funcs()->fb_width = get_framebuffer_width;
-    platform_funcs()->fb_height = get_framebuffer_height;
-    platform_funcs()->fb_stride = framebuffer_stride;
-    platform_funcs()->fb_flush = flush_framebuffer;
+    platform_funcs.framebuffer = get_framebuffer;
+    platform_funcs.fb_width = get_framebuffer_width;
+    platform_funcs.fb_height = get_framebuffer_height;
+    platform_funcs.fb_stride = framebuffer_stride;
+    platform_funcs.fb_flush = flush_framebuffer;
 }
 
 

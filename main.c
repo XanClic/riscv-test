@@ -33,7 +33,7 @@ static int saturated_add(int x, int y, int min, int max)
 
 #define PRINT(...) \
     do { \
-        uint64_t time = platform_funcs()->elapsed_us(); \
+        uint64_t time = platform_funcs.elapsed_us(); \
         kprintf("[%zu.%06u] ", time / 1000000, (int)(time % 1000000)); \
         kprintf(__VA_ARGS__); \
     } while (0)
@@ -57,35 +57,35 @@ void main(void)
     putchar('\n');
 
 
-    if (!platform_funcs()->framebuffer) {
+    if (!platform_funcs.framebuffer) {
         PRINT("No framebuffer found, shutting down\n");
         return;
     }
 
     PRINT("Framebuffer found, clearing it with gray\n");
 
-    uint32_t *fb = platform_funcs()->framebuffer();
-    int fbw = platform_funcs()->fb_width();
-    int fbh = platform_funcs()->fb_height();
-    size_t fb_stride = platform_funcs()->fb_stride();
+    uint32_t *fb = platform_funcs.framebuffer();
+    int fbw = platform_funcs.fb_width();
+    int fbh = platform_funcs.fb_height();
+    size_t fb_stride = platform_funcs.fb_stride();
 
     memset(fb, 0x40, fbh * fb_stride);
-    platform_funcs()->fb_flush(0, 0, 0, 0);
+    platform_funcs.fb_flush(0, 0, 0, 0);
 
     int mouse_x = fbw / 2, mouse_y = fbh / 2;
 
     draw_cursor(fb, fb_stride, mouse_x, mouse_y, 0x80ff00);
-    platform_funcs()->fb_flush(mouse_x, mouse_y, CURSOR_SIZE, CURSOR_SIZE);
+    platform_funcs.fb_flush(mouse_x, mouse_y, CURSOR_SIZE, CURSOR_SIZE);
 
     for (;;) {
         int key, dx, dy, button;
         bool has_button, up, button_up;
 
-        if (platform_funcs()->get_keyboard_event(&key, &up)) {
+        if (platform_funcs.get_keyboard_event(&key, &up)) {
             PRINT("key %i %s\n", key, up ? "up" : "down");
         }
 
-        if (platform_funcs()->get_mouse_event(&dx, &dy, &has_button,
+        if (platform_funcs.get_mouse_event(&dx, &dy, &has_button,
                                               &button, &button_up))
         {
             if (has_button) {
@@ -110,7 +110,7 @@ void main(void)
                 flrx = saturated_add(flrx, CURSOR_SIZE, 0, fbw);
                 flry = saturated_add(flry, CURSOR_SIZE, 0, fbh);
 
-                platform_funcs()->fb_flush(fulx, fuly,
+                platform_funcs.fb_flush(fulx, fuly,
                                            flrx - fulx, flry - fuly);
             }
         }

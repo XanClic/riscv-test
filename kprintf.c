@@ -18,7 +18,7 @@ void putchar(uint8_t c)
         putchar('\r');
     }
 
-    platform_funcs()->putchar(c);
+    platform_funcs.putchar(c);
 #endif
 }
 

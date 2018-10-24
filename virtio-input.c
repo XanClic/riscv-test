@@ -128,12 +128,12 @@ static void init_device(struct VirtIOControlRegs *regs, enum DEVICE dev)
     switch (dev) {
         case KEYBOARD:
             puts("[virtio-input] Offering keyboard");
-            platform_funcs()->get_keyboard_event = get_keyboard_event;
+            platform_funcs.get_keyboard_event = get_keyboard_event;
             break;
 
         case MOUSE:
             puts("[virtio-input] Offering mouse");
-            platform_funcs()->get_mouse_event = get_mouse_event;
+            platform_funcs.get_mouse_event = get_mouse_event;
             break;
 
         default:

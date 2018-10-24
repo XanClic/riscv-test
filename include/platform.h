@@ -29,7 +29,9 @@ typedef struct PlatformFuncs {
 } PlatformFuncs;
 
 
+extern PlatformFuncs platform_funcs;
+
+
 void init_platform(void);
-PlatformFuncs *platform_funcs(void);
 
 #endif

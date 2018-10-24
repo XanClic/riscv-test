@@ -5,7 +5,7 @@
 
 
 static PlatformType platform_type;
-static PlatformFuncs platform_funcs_s;
+PlatformFuncs platform_funcs;
 
 
 void init_platform(void)
@@ -21,10 +21,4 @@ void init_platform(void)
     }
 
     assert(0);
-}
-
-
-PlatformFuncs *platform_funcs(void)
-{
-    return &platform_funcs_s;
 }

@@ -11,7 +11,7 @@ static void spike_putchar(uint8_t c);
 
 bool init_platform_spike(void)
 {
-    platform_funcs()->putchar = spike_putchar;
+    platform_funcs.putchar = spike_putchar;
 
     puts("[platform-spike] Unknown platform, assuming Spike board");
 
