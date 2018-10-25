@@ -1,24 +1,66 @@
+#include <ivorbisfile.h>
+#include <kprintf.h>
+#include <limits.h>
 #include <music.h>
 #include <platform.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 
-static int16_t music_track[8000 * 10];
+extern const void _binary_music_ogg_start, _binary_music_ogg_size;
+
 static uint64_t track_resume_at = -1;
+static int64_t music_sample_count;
+static int16_t *music_samples;
 
 
 static void track_complete(void);
 
 void init_music(void)
 {
-    int16_t sample = 0;
+    stdio_add_inode("/music.ogg", &_binary_music_ogg_start,
+                    (size_t)&_binary_music_ogg_size);
 
-    for (int i = 0; i < (int)ARRAY_SIZE(music_track); i++) {
-        music_track[i] = sample;
-        sample += 0x1000;
+    FILE *fp = fopen("/music.ogg", "rb");
+    if (!fp) {
+        puts("[music] Failed to find /music.ogg");
+        return;
     }
 
-    platform_funcs.queue_audio_track(music_track, ARRAY_SIZE(music_track),
+    OggVorbis_File ovf;
+    if (ov_open(fp, &ovf, NULL, 0) < 0) {
+        puts("[music] Failed to load /music.ogg");
+        fclose(fp);
+        return;
+    }
+
+    music_sample_count = ov_pcm_total(&ovf, -1);
+    if (music_sample_count < 0) {
+        puts("[music] Stream is unseekable");
+        return;
+    } else if (music_sample_count > INT_MAX / 2) {
+        puts("[music] Music track is too long");
+        return;
+    }
+
+    music_samples = malloc(music_sample_count * sizeof(int16_t));
+
+    int remaining = music_sample_count * 2;
+    char *target = (char *)music_samples;
+    int bitstream = 0;
+    while (remaining) {
+        int read = ov_read(&ovf, target, remaining, &bitstream);
+
+        if (read <= 0) {
+            music_sample_count -= remaining / 2;
+            break;
+        }
+
+        remaining -= read;
+        target += read;
+    }
+
+    platform_funcs.queue_audio_track(music_samples, music_sample_count,
                                      track_complete);
 }
 
@@ -28,7 +70,7 @@ void handle_music(void)
         return;
     }
 
-    platform_funcs.queue_audio_track(music_track, ARRAY_SIZE(music_track),
+    platform_funcs.queue_audio_track(music_samples, music_sample_count,
                                      track_complete);
     track_resume_at = -1;
 }

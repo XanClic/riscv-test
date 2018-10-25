@@ -1,6 +1,7 @@
 AS = riscv64-linux-gnu-gcc
 CC = riscv64-linux-gnu-gcc
 LD = riscv64-linux-gnu-ld
+OBJCP = riscv64-linux-gnu-objcopy
 RM = rm -f
 
 CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -g2 -DUSE_LOCKS=0
@@ -8,7 +9,9 @@ ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
 CFLAGS += -DSERIAL_IS_SOUND
 
-OBJECTS = $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.c,%.o,$(wildcard *.c))
+OBJECTS = $(patsubst %.S,%.o,$(shell find -name '*.S')) \
+          $(patsubst %.c,%.o,$(shell find -name '*.c')) \
+          $(patsubst %.ogg,%-bin.o,$(shell find -name '*.ogg'))
 
 .PHONY: all clean
 
@@ -28,6 +31,13 @@ Tremor/%.o: Tremor/%.c
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+%-bin.o: %.ogg
+	$(OBJCP) -I binary -O elf64-little -B riscv $< $@
+	@echo Setting RISC-V architecture:
+	echo -ne '\xf3' | dd of=$@ bs=1 seek=18 conv=notrunc status=none
+	@echo Setting machine flags:
+	echo -ne '\x05' | dd of=$@ bs=1 seek=48 conv=notrunc status=none
 
 clean:
 	$(RM) $(OBJECTS)
