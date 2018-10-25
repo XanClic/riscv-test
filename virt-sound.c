@@ -6,6 +6,7 @@
 
 
 static bool queue_track(const int16_t *buffer, size_t samples,
+                        int sample_rate, int channels,
                         void (*completed)(void));
 static void handle_audio(void);
 
@@ -21,10 +22,13 @@ void init_virt_sound(void)
 }
 
 static bool queue_track(const int16_t *buffer, size_t samples,
+                        int sample_rate, int channels,
                         void (*completed)(void))
 {
     (void)buffer;
     (void)samples;
+    (void)sample_rate;
+    (void)channels;
     (void)completed;
     return false;
 }
@@ -34,9 +38,6 @@ static void handle_audio(void)
 }
 
 #else // SERIAL_IS_SOUND
-
-// mono, 16 bit signed
-#define SAMPLE_RATE 8000
 
 #define BUFFER_MS 10
 
@@ -51,15 +52,12 @@ static struct {
 } tracks[MAX_TRACK_COUNT];
 
 static int track_count;
+static int output_sample_rate, output_channels;
 
-
-static void output_wave_header(int rate, int channels, int bytes_per_sample);
 
 void init_virt_sound(void)
 {
     kprintf("[virt-sound] Providing RIFF WAVE over serial\n");
-
-    output_wave_header(SAMPLE_RATE, 1, sizeof(int16_t));
 
     platform_funcs.queue_audio_track = queue_track;
     platform_funcs.handle_audio = handle_audio;
@@ -141,10 +139,21 @@ static void output_wave_header(int rate, int channels, int bytes_per_sample)
 }
 
 static bool queue_track(const int16_t *buffer, size_t samples,
+                        int sample_rate, int channels,
                         void (*completed)(void))
 {
     if (track_count >= MAX_TRACK_COUNT) {
         return false;
+    }
+
+    if (output_sample_rate) {
+        if (sample_rate != output_sample_rate || channels != output_channels) {
+            return false;
+        }
+    } else {
+        output_wave_header(sample_rate, channels, sizeof(int16_t));
+        output_sample_rate = sample_rate;
+        output_channels = channels;
     }
 
     tracks[track_count].buffer = buffer;
@@ -159,14 +168,16 @@ static bool queue_track(const int16_t *buffer, size_t samples,
 
 static void handle_audio(void)
 {
-    static size_t samples_buffered;
+    static int samples_buffered;
     static uint64_t last_gusi; // global micro-sample index
 
-    uint64_t gusi = platform_funcs.elapsed_us() * SAMPLE_RATE;
+    int real_sample_rate = output_sample_rate * output_channels;
+
+    uint64_t gusi = platform_funcs.elapsed_us() * real_sample_rate;
     size_t samples_played = (gusi - last_gusi) / 1000000;
     last_gusi = gusi - (gusi - last_gusi) % 1000000;
 
-    if (samples_played >= samples_buffered) {
+    if (samples_played >= (size_t)samples_buffered) {
         samples_buffered = 0;
     } else {
         samples_buffered -= samples_played;
@@ -176,7 +187,7 @@ static void handle_audio(void)
         return;
     }
 
-    while (samples_buffered < SAMPLE_RATE / (1000 / BUFFER_MS)) {
+    while (samples_buffered < real_sample_rate / (1000 / BUFFER_MS)) {
         int16_t sample = 0;
         for (int i = 0; i < track_count; i++) {
             sample += tracks[i].buffer[tracks[i].index++];

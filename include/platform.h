@@ -28,8 +28,13 @@ typedef struct PlatformFuncs {
                             bool *button_up);
 
     // completed() must be quick to return and may not call any audio
-    // function
+    // function.
+    // @sample_rate and @channels of the first track queued determine
+    // what rate and channel count to use from then on; for the
+    // remaining tracks, we just see whether they match.  If they do
+    // not, the track is not queued.
     bool (*queue_audio_track)(const int16_t *buffer, size_t samples,
+                              int sample_rate, int channels,
                               void (*completed)(void));
     void (*handle_audio)(void);
 } PlatformFuncs;

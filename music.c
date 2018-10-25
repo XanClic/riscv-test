@@ -12,6 +12,7 @@ extern const void _binary_music_ogg_start, _binary_music_ogg_size;
 static uint64_t track_resume_at = -1;
 static int64_t music_sample_count;
 static int16_t *music_samples;
+static int sample_rate, channels;
 
 
 static void track_complete(void);
@@ -45,6 +46,10 @@ void init_music(void)
 
     music_samples = malloc(music_sample_count * sizeof(int16_t));
 
+    vorbis_info *vi = ov_info(&ovf, -1);
+    sample_rate = vi->rate;
+    channels = vi->channels;
+
     int remaining = music_sample_count * 2;
     char *target = (char *)music_samples;
     int bitstream = 0;
@@ -61,7 +66,7 @@ void init_music(void)
     }
 
     platform_funcs.queue_audio_track(music_samples, music_sample_count,
-                                     track_complete);
+                                     sample_rate, channels, track_complete);
 }
 
 void handle_music(void)
@@ -71,7 +76,7 @@ void handle_music(void)
     }
 
     platform_funcs.queue_audio_track(music_samples, music_sample_count,
-                                     track_complete);
+                                     sample_rate, channels, track_complete);
     track_resume_at = -1;
 }
 

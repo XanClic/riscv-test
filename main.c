@@ -97,7 +97,8 @@ void main(void)
             PRINT("key %i %s\n", key, up ? "up" : "down");
             if (!up) {
                 platform_funcs.queue_audio_track(key_sound,
-                                                 ARRAY_SIZE(key_sound), NULL);
+                                                 ARRAY_SIZE(key_sound),
+                                                 8000, 1, NULL);
             }
         }
 
