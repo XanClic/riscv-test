@@ -1,9 +1,9 @@
 #include <config.h>
-#include <kmalloc.h>
 #include <kprintf.h>
 #include <platform.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <virtio.h>
 #include <virtio-gpu.h>
 
@@ -211,7 +211,7 @@ static uint32_t *setup_framebuffer(int scanout, int res_id,
     }
 
     size_t stride = calc_stride(width, 32);
-    uint32_t *fb = kmalloc(height * stride);
+    uint32_t *fb = memalign(PAGESIZE, height * stride);
     if (!resource_attach_backing(res_id, (uintptr_t)fb, height * stride)) {
         return NULL;
     }

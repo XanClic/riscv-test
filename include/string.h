@@ -13,6 +13,7 @@
 char *strcpy(char *dest, const char *src);
 size_t strlen(const char *s);
 
+void *memcpy(void *d, const void *s, size_t n);
 void *memmove(void *d, const void *s, size_t n);
 void *memset(void *s, int c, size_t n);
 void *memset32(void *s, uint32_t c, size_t n);

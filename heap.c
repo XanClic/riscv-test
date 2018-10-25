@@ -1,6 +1,7 @@
 #include <config.h>
-#include <kmalloc.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 
 extern const void __kernel_end;
@@ -11,14 +12,13 @@ static uintptr_t heap_end;
 #endif
 
 
-void *kmalloc(size_t sz)
+void *sbrk(ptrdiff_t sz)
 {
     if (!heap_end) {
-        heap_end = (uintptr_t)&__kernel_end;
+        heap_end = ROUND_UP((uintptr_t)&__kernel_end, PAGESIZE);
     }
 
-    uintptr_t res = ROUND_UP(heap_end, PAGESIZE);
-    heap_end = res + sz;
-
-    return (void *)res;
+    void *ptr = (void *)heap_end;
+    heap_end += sz;
+    return ptr;
 }

@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <kmalloc.h>
 #include <kprintf.h>
 #include <platform.h>
 #include <stdbool.h>

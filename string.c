@@ -44,6 +44,19 @@ void *memset32(void *s, uint32_t c, size_t n)
 }
 
 
+void *memcpy(void *dest, const void *src, size_t n)
+{
+    char *d8 = dest;
+    const char *s8 = src;
+
+    while (n--) {
+        *(d8++) = *(s8++);
+    }
+
+    return dest;
+}
+
+
 void *memmove(void *d, const void *s, size_t n)
 {
     const char *s8 = s;
