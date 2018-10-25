@@ -1,6 +1,32 @@
 #include <string.h>
 
 
+char *strcat(char *dest, const char *src)
+{
+    char *dc = dest;
+
+    while (*dest) {
+        dest++;
+    }
+    while (*src) {
+        *(dest++) = *(src++);
+    }
+    *dest = 0;
+
+    return dc;
+}
+
+
+int strcmp(const char *s1, const char *s2)
+{
+    int diff = 0;
+
+    while (*s1 && (diff = *(s1++) - *(s2++)) == 0);
+
+    return diff;
+}
+
+
 char *strcpy(char *dest, const char *src)
 {
     char *od = dest;
@@ -73,4 +99,28 @@ void *memmove(void *d, const void *s, size_t n)
     }
 
     return d;
+}
+
+
+int memcmp(const void *s1, const void *s2, size_t n)
+{
+    const unsigned char *s18 = s1, *s28 = s2;
+    int diff = 0;
+
+    while (n-- && (diff = *(s18++) - *(s28++)) == 0);
+
+    return diff;
+}
+
+
+void *memchr(const void *s, int c, size_t n)
+{
+    const unsigned char *s8 = s;
+
+    while (n && *s8 != c) {
+        s8++;
+        n--;
+    }
+
+    return n ? (void *)s8 : NULL;
 }

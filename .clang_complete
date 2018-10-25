@@ -2,5 +2,7 @@
 -fno-builtin
 -nostdinc
 -Iinclude
+-Ilibogg-1.3.2/include
+-ITremor
 -std=c11
 -DSERIAL_IS_SOUND

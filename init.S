@@ -21,5 +21,5 @@ j       hang
 
 .section .bss
 
-.zero 4096
+.zero 65536
 stack:

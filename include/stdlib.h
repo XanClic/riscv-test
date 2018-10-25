@@ -17,4 +17,17 @@ void free(void *ptr);
 
 _Noreturn void abort(void);
 
+void qsort(void *base, size_t nmemb, size_t size,
+           int (*compar)(const void *, const void *));
+
+static inline int abs(int j)
+{
+    return j < 0 ? -j : j;
+}
+
+static inline long labs(long j)
+{
+    return j < 0 ? -j : j;
+}
+
 #endif
