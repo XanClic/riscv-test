@@ -52,13 +52,92 @@ static struct {
 
 static int track_count;
 
+
+static void output_wave_header(int rate, int channels, int bytes_per_sample);
+
 void init_virt_sound(void)
 {
-    kprintf("[virt-sound] Providing raw PCM over serial (%i Hz s16le mono)\n",
-            SERIAL_IS_SOUND);
+    kprintf("[virt-sound] Providing RIFF WAVE over serial\n");
+
+    output_wave_header(SAMPLE_RATE, 1, sizeof(int16_t));
 
     platform_funcs.queue_audio_track = queue_track;
     platform_funcs.handle_audio = handle_audio;
+}
+
+static inline void play_byte(uint8_t b)
+{
+    *(volatile uint8_t *)VPBA_UART_BASE = b;
+}
+
+static void output_wave_header(int rate, int channels, int bytes_per_sample)
+{
+    play_byte('R');
+    play_byte('I');
+    play_byte('F');
+    play_byte('F');
+
+    // file length - 8
+    play_byte(0xf4);
+    play_byte(0xff);
+    play_byte(0xff);
+    play_byte(0xff);
+
+    play_byte('W');
+    play_byte('A');
+    play_byte('V');
+    play_byte('E');
+
+    play_byte('f');
+    play_byte('m');
+    play_byte('t');
+    play_byte(' ');
+
+    // further header length (16 bytes)
+    play_byte(0x10);
+    play_byte(0x00);
+    play_byte(0x00);
+    play_byte(0x00);
+
+    // sample format (PCM)
+    play_byte(0x01);
+    play_byte(0x00);
+
+    // channels
+    play_byte(channels);
+    play_byte(0x00);
+
+    // sample rate
+    play_byte( rate        & 0xff);
+    play_byte((rate >>  8) & 0xff);
+    play_byte((rate >> 16) & 0xff);
+    play_byte((rate >> 24) & 0xff);
+
+    // bytes per second
+    int bps = rate * channels * bytes_per_sample;
+    play_byte( bps        & 0xff);
+    play_byte((bps >>  8) & 0xff);
+    play_byte((bps >> 16) & 0xff);
+    play_byte((bps >> 24) & 0xff);
+
+    // bytes per frame
+    play_byte(channels * bytes_per_sample);
+    play_byte(0x00);
+
+    // bits per sample
+    play_byte(bytes_per_sample * 8);
+    play_byte(0x00);
+
+    play_byte('d');
+    play_byte('a');
+    play_byte('t');
+    play_byte('a');
+
+    // file length - 0x44
+    play_byte(0xb8);
+    play_byte(0xff);
+    play_byte(0xff);
+    play_byte(0xff);
 }
 
 static bool queue_track(const int16_t *buffer, size_t samples,
@@ -113,8 +192,8 @@ static void handle_audio(void)
             }
         }
 
-        *(volatile uint8_t *)VPBA_UART_BASE = (uint16_t)sample & 0xff;
-        *(volatile uint8_t *)VPBA_UART_BASE = (uint16_t)sample >> 8;
+        play_byte((uint16_t)sample & 0xff);
+        play_byte((uint16_t)sample >> 8);
         samples_buffered++;
     }
 }
