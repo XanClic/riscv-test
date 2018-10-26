@@ -7,7 +7,12 @@ RM = rm -f
 CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -Izlib-1.2.11 -Ilibpng-1.6.35 -g2 -DUSE_LOCKS=0
 ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
+# Signify that the serial output is fed to something that plays
+# RIFF WAVE with little delay so that we can actually use sound
 CFLAGS += -DSERIAL_IS_SOUND
+
+# Resample all sound from 16 to 8 bit
+# CFLAGS += -DSAMPLE_8BIT
 
 OBJECTS = $(patsubst %.S,%.o,$(shell find -name '*.S')) \
           $(patsubst %.c,%.o,$(shell find -name '*.c')) \

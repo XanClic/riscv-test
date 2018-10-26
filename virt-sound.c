@@ -153,7 +153,11 @@ static bool queue_track(const int16_t *buffer, size_t frames,
             return false;
         }
     } else {
+#ifdef SAMPLE_8BIT
+        output_wave_header(frame_rate, channels, 1);
+#else
         output_wave_header(frame_rate, channels, sizeof(int16_t));
+#endif
         output_frame_rate = frame_rate;
         output_channels = channels;
     }
@@ -205,8 +209,12 @@ static void handle_audio(void)
             }
         }
 
+#ifdef SAMPLE_8BIT
+        play_byte(((uint16_t)sample + 0x8000) >> 8);
+#else
         play_byte((uint16_t)sample & 0xff);
         play_byte((uint16_t)sample >> 8);
+#endif
         samples_buffered++;
     }
 }
