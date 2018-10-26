@@ -7,8 +7,8 @@
 #include <virt-sound.h>
 
 
-static bool queue_track(const int16_t *buffer, size_t samples,
-                        int sample_rate, int channels,
+static bool queue_track(const int16_t *buffer, size_t frames,
+                        int frame_rate, int channels,
                         void (*completed)(void));
 static void handle_audio(void);
 
@@ -23,13 +23,13 @@ void init_virt_sound(void)
     platform_funcs.handle_audio = handle_audio;
 }
 
-static bool queue_track(const int16_t *buffer, size_t samples,
-                        int sample_rate, int channels,
+static bool queue_track(const int16_t *buffer, size_t frames,
+                        int frame_rate, int channels,
                         void (*completed)(void))
 {
     (void)buffer;
-    (void)samples;
-    (void)sample_rate;
+    (void)frames;
+    (void)frame_rate;
     (void)channels;
     (void)completed;
     return false;
@@ -54,7 +54,7 @@ static struct {
 } tracks[MAX_TRACK_COUNT];
 
 static int track_count;
-static int output_sample_rate, output_channels;
+static int output_frame_rate, output_channels;
 
 
 void init_virt_sound(void)
@@ -107,7 +107,7 @@ static void output_wave_header(int rate, int channels, int bytes_per_sample)
     play_byte(channels);
     play_byte(0x00);
 
-    // sample rate
+    // frame rate
     play_byte( rate        & 0xff);
     play_byte((rate >>  8) & 0xff);
     play_byte((rate >> 16) & 0xff);
@@ -140,26 +140,26 @@ static void output_wave_header(int rate, int channels, int bytes_per_sample)
     play_byte(0xff);
 }
 
-static bool queue_track(const int16_t *buffer, size_t samples,
-                        int sample_rate, int channels,
+static bool queue_track(const int16_t *buffer, size_t frames,
+                        int frame_rate, int channels,
                         void (*completed)(void))
 {
     if (track_count >= MAX_TRACK_COUNT) {
         return false;
     }
 
-    if (output_sample_rate) {
-        if (sample_rate != output_sample_rate || channels != output_channels) {
+    if (output_frame_rate) {
+        if (frame_rate != output_frame_rate || channels != output_channels) {
             return false;
         }
     } else {
-        output_wave_header(sample_rate, channels, sizeof(int16_t));
-        output_sample_rate = sample_rate;
+        output_wave_header(frame_rate, channels, sizeof(int16_t));
+        output_frame_rate = frame_rate;
         output_channels = channels;
     }
 
     tracks[track_count].buffer = buffer;
-    tracks[track_count].samples = samples;
+    tracks[track_count].samples = frames * channels;
     tracks[track_count].index = 0;
     tracks[track_count].completed = completed;
 
@@ -173,9 +173,9 @@ static void handle_audio(void)
     static int samples_buffered;
     static uint64_t last_gusi; // global micro-sample index
 
-    int real_sample_rate = output_sample_rate * output_channels;
+    int sample_rate = output_frame_rate * output_channels;
 
-    uint64_t gusi = platform_funcs.elapsed_us() * real_sample_rate;
+    uint64_t gusi = platform_funcs.elapsed_us() * sample_rate;
     size_t samples_played = (gusi - last_gusi) / 1000000;
     last_gusi = gusi - (gusi - last_gusi) % 1000000;
 
@@ -189,7 +189,7 @@ static void handle_audio(void)
         return;
     }
 
-    while (samples_buffered < real_sample_rate / (1000 / BUFFER_MS)) {
+    while (samples_buffered < sample_rate / (1000 / BUFFER_MS)) {
         int16_t sample = 0;
         for (int i = 0; i < track_count; i++) {
             sample += tracks[i].buffer[tracks[i].index++];

@@ -10,9 +10,9 @@
 extern const void _binary_music_ogg_start, _binary_music_ogg_size;
 
 static uint64_t track_resume_at = -1;
-static int64_t music_sample_count;
+static int64_t music_frame_count;
 static int16_t *music_samples;
-static int sample_rate, channels;
+static int frame_rate, channels;
 
 
 static void track_complete(void);
@@ -35,29 +35,29 @@ void init_music(void)
         return;
     }
 
-    music_sample_count = ov_pcm_total(&ovf, -1);
-    if (music_sample_count < 0) {
+    music_frame_count = ov_pcm_total(&ovf, -1);
+    if (music_frame_count < 0) {
         puts("[music] Stream is unseekable");
         return;
-    } else if (music_sample_count > INT_MAX / 2) {
+    } else if (music_frame_count > INT_MAX / 2) {
         puts("[music] Music track is too long");
         return;
     }
 
-    music_samples = malloc(music_sample_count * sizeof(int16_t));
-
     vorbis_info *vi = ov_info(&ovf, -1);
-    sample_rate = vi->rate;
+    frame_rate = vi->rate;
     channels = vi->channels;
 
-    int remaining = music_sample_count * 2;
+    music_samples = malloc(music_frame_count * channels * sizeof(int16_t));
+
+    int remaining = music_frame_count * channels * 2;
     char *target = (char *)music_samples;
     int bitstream = 0;
     while (remaining) {
         int read = ov_read(&ovf, target, remaining, &bitstream);
 
         if (read <= 0) {
-            music_sample_count -= remaining / 2;
+            music_frame_count -= remaining / (channels * 2);
             break;
         }
 
@@ -65,8 +65,8 @@ void init_music(void)
         target += read;
     }
 
-    platform_funcs.queue_audio_track(music_samples, music_sample_count,
-                                     sample_rate, channels, track_complete);
+    platform_funcs.queue_audio_track(music_samples, music_frame_count,
+                                     frame_rate, channels, track_complete);
 }
 
 void handle_music(void)
@@ -75,8 +75,8 @@ void handle_music(void)
         return;
     }
 
-    platform_funcs.queue_audio_track(music_samples, music_sample_count,
-                                     sample_rate, channels, track_complete);
+    platform_funcs.queue_audio_track(music_samples, music_frame_count,
+                                     frame_rate, channels, track_complete);
     track_resume_at = -1;
 }
 
