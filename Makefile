@@ -4,7 +4,7 @@ LD = riscv64-linux-gnu-ld
 OBJCP = riscv64-linux-gnu-objcopy
 RM = rm -f
 
-CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -g2 -DUSE_LOCKS=0
+CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -Izlib-1.2.11 -Ilibpng-1.6.35 -g2 -DUSE_LOCKS=0
 ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
 CFLAGS += -DSERIAL_IS_SOUND
@@ -28,6 +28,9 @@ libogg-1.3.2/%.o: libogg-1.3.2/%.c
 
 Tremor/%.o: Tremor/%.c
 	$(CC) $(CFLAGS) -Wno-shadow -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -c $< -o $@
+
+zlib-1.2.11/%.o: zlib-1.2.11/%.c
+	$(CC) $(CFLAGS) -Wno-implicit-fallthrough -c $< -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
