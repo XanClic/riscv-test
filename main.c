@@ -2,19 +2,44 @@
 #include <music.h>
 #include <nonstddef.h>
 #include <platform.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 
 #define CURSOR_SIZE 20
 
-static void draw_cursor(uint32_t *fb, size_t stride,
-                        int x, int y, uint32_t color)
+static void draw_cursor(uint32_t *fb, int fbw, int fbh, size_t stride,
+                        int x, int y, bool draw)
 {
     fb += y * stride / 4 + x;
 
-    for (int l = 0; l < CURSOR_SIZE; l++) {
-        memset32(fb, color, l + 1);
+    for (int l = 0; l < CURSOR_SIZE && y + l < fbh; l++) {
+        int w = l;
+        int bw;
+
+        if (w >= 3 * CURSOR_SIZE / 4) {
+            w -= (w - 3 * CURSOR_SIZE / 4) * 4;
+            bw = 4;
+        } else {
+            w += 1;
+            bw = 1;
+        }
+
+        if (w == CURSOR_SIZE - 1) {
+            bw = w;
+        }
+
+        w = MIN(w, fbw - x);
+
+        if (draw) {
+            fb[0] = 0;
+            for (int i = 1; i < w; i++) {
+                fb[i] = (i < w - bw) ? 0xffffff : 0;
+            }
+        } else {
+            memset32(fb, 0x404040, w);
+        }
         fb += stride / 4;
     }
 }
@@ -79,7 +104,7 @@ void main(void)
 
     int mouse_x = fbw / 2, mouse_y = fbh / 2;
 
-    draw_cursor(fb, fb_stride, mouse_x, mouse_y, 0x80ff00);
+    draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
     platform_funcs.fb_flush(mouse_x, mouse_y, CURSOR_SIZE, CURSOR_SIZE);
 
     init_music();
@@ -116,8 +141,8 @@ void main(void)
                 mouse_x = saturated_add(mouse_x, dx, 0, fbw);
                 mouse_y = saturated_add(mouse_y, dy, 0, fbh);
 
-                draw_cursor(fb, fb_stride, omx, omy, 0x404040);
-                draw_cursor(fb, fb_stride, mouse_x, mouse_y, 0x80ff00);
+                draw_cursor(fb, fbw, fbh, fb_stride, omx, omy, false);
+                draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
 
                 int fulx = MIN(omx, mouse_x);
                 int fuly = MIN(omy, mouse_y);
@@ -129,7 +154,7 @@ void main(void)
                 flry = saturated_add(flry, CURSOR_SIZE, 0, fbh);
 
                 platform_funcs.fb_flush(fulx, fuly,
-                                           flrx - fulx, flry - fuly);
+                                        flrx - fulx, flry - fuly);
             }
         }
 
