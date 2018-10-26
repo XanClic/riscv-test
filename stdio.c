@@ -67,6 +67,18 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 }
 
 
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+    (void)ptr;
+    (void)size;
+    (void)nmemb;
+    (void)stream;
+
+    errno = EROFS;
+    return 0;
+}
+
+
 long ftell(FILE *stream)
 {
     return stream->loc;
@@ -101,5 +113,12 @@ int fseek(FILE *stream, long offset, int whence)
             return -1;
     }
 
+    return 0;
+}
+
+
+int fflush(FILE *stream)
+{
+    (void)stream;
     return 0;
 }
