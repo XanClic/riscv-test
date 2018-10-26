@@ -4,7 +4,7 @@
 
 #ifndef NDEBUG
 
-#include <kprintf.h>
+#include <stdio.h>
 
 
 #ifndef __quote
@@ -15,7 +15,7 @@
 #define assert(assertion) \
     do { \
         if (!(assertion)) { \
-            kprintf(__FILE__ ":" __quote(__LINE__) ": %s(): " \
+            printf(__FILE__ ":" __quote(__LINE__) ": %s(): " \
                     "Assertion '" #assertion "' failed.\n", \
                     __func__); \
             for (;;); \

@@ -1,9 +1,9 @@
 #include <platform.h>
 #include <platform-virt.h>
-#include <kprintf.h>
 #include <sifive-clint.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <virt-sound.h>
 #include <virt-uart.h>
 #include <virtio.h>

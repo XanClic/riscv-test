@@ -1,10 +1,10 @@
 #include <htif.h>
-#include <kprintf.h>
 #include <sifive-clint.h>
 #include <platform.h>
 #include <platform-spike.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 
 static void spike_putchar(uint8_t c);

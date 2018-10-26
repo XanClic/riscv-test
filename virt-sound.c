@@ -1,6 +1,8 @@
-#include <kprintf.h>
 #include <platform.h>
 #include <platform-virt.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <virt-sound.h>
 
@@ -57,7 +59,7 @@ static int output_sample_rate, output_channels;
 
 void init_virt_sound(void)
 {
-    kprintf("[virt-sound] Providing RIFF WAVE over serial\n");
+    printf("[virt-sound] Providing RIFF WAVE over serial\n");
 
     platform_funcs.queue_audio_track = queue_track;
     platform_funcs.handle_audio = handle_audio;

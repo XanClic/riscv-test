@@ -1,6 +1,7 @@
-#include <kprintf.h>
 #include <platform.h>
 #include <sifive-clint.h>
+#include <stdint.h>
+#include <stdio.h>
 
 
 static uintptr_t base;
@@ -14,7 +15,7 @@ void init_sifive_clint(uintptr_t b)
         return;
     }
 
-    kprintf("[sifive-clint] Found CLINT @%p\n", (void *)b);
+    printf("[sifive-clint] Found CLINT @%p\n", (void *)b);
 
     base = b;
 

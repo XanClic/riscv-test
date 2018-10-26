@@ -1,9 +1,9 @@
 #include <ivorbisfile.h>
-#include <kprintf.h>
 #include <limits.h>
 #include <music.h>
 #include <platform.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 

@@ -1,10 +1,11 @@
 #include <assert.h>
+#include <errno.h>
 #include <htif.h>
-#include <kprintf.h>
 #include <platform.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #include <virt-uart.h>
 
@@ -216,18 +217,22 @@ static void vprintf_do(void (*putfn)(char, void *), void *opaque,
 
 static void __putfn_stdout(char c, void *opaque)
 {
-    (void)opaque;
+    (*(int *)opaque)++;
     putchar(c);
 }
 
 struct __putfn_buffer_args {
     char *dest;
     size_t remaining;
+    int char_count;
 };
 
 static void __putfn_buffer(char c, void *opaque)
 {
     struct __putfn_buffer_args *args = opaque;
+
+    args->char_count++;
+
     if (!args->remaining) {
         return;
     } else if (args->remaining == 1) {
@@ -238,30 +243,65 @@ static void __putfn_buffer(char c, void *opaque)
     args->remaining--;
 }
 
-void kprintf(const char *format, ...)
+int printf(const char *format, ...)
 {
+    int char_count;
     va_list ap;
+
     va_start(ap, format);
-    vprintf_do(__putfn_stdout, NULL, format, ap);
+    vprintf_do(__putfn_stdout, &char_count, format, ap);
     va_end(ap);
+
+    return char_count;
 }
 
-void kvprintf(const char *format, va_list ap)
+int vprintf(const char *format, va_list ap)
 {
-    vprintf_do(__putfn_stdout, NULL, format, ap);
+    int char_count;
+    vprintf_do(__putfn_stdout, &char_count, format, ap);
+    return char_count;
 }
 
-void ksnprintf(char *dest, size_t n, const char *format, ...)
+int fprintf(FILE *stream, const char *format, ...)
 {
+    int char_count;
     va_list ap;
+
+    if (stream) {
+        errno = -EBADF;
+        return -1;
+    }
+
+    va_start(ap, format);
+    vprintf_do(__putfn_stdout, &char_count, format, ap);
+    va_end(ap);
+
+    return char_count;
+}
+
+int snprintf(char *dest, size_t n, const char *format, ...)
+{
+    int ret;
+    va_list ap;
+
+    va_start(ap, format);
+    ret = vsnprintf(dest, n, format, ap);
+    va_end(ap);
+
+    return ret;
+}
+
+int vsnprintf(char *dest, size_t n, const char *format, va_list ap)
+{
+    int ret;
     struct __putfn_buffer_args args = {
         .dest = dest,
         .remaining = n
     };
 
-    va_start(ap, format);
     vprintf_do(__putfn_buffer, &args, format, ap);
-    va_end(ap);
 
+    ret = args.char_count;
     __putfn_buffer(0, &args);
+    return ret;
 }

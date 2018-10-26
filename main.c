@@ -1,8 +1,8 @@
 #include <cpu.h>
-#include <kprintf.h>
 #include <music.h>
 #include <nonstddef.h>
 #include <platform.h>
+#include <stdio.h>
 #include <string.h>
 
 
@@ -36,8 +36,8 @@ static int saturated_add(int x, int y, int min, int max)
 #define PRINT(...) \
     do { \
         uint64_t time = platform_funcs.elapsed_us(); \
-        kprintf("[%zu.%06u] ", time / 1000000, (int)(time % 1000000)); \
-        kprintf(__VA_ARGS__); \
+        printf("[%zu.%06u] ", time / 1000000, (int)(time % 1000000)); \
+        printf(__VA_ARGS__); \
     } while (0)
 
 

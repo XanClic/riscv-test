@@ -1,8 +1,9 @@
 #include <assert.h>
-#include <kprintf.h>
 #include <platform.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <virtio.h>
 #include <virtio-input.h>
 
@@ -44,7 +45,7 @@ static void select_config(struct VirtIOControlRegs *regs,
 
 void init_virtio_input(struct VirtIOControlRegs *regs)
 {
-    kprintf("[virtio-input] Found device @%p\n", (void *)regs);
+    printf("[virtio-input] Found device @%p\n", (void *)regs);
 
     uint64_t features = FF_ANY_LAYOUT | FF_VERSION_1;
     int ret = virtio_basic_negotiate(regs, &features);
@@ -55,7 +56,7 @@ void init_virtio_input(struct VirtIOControlRegs *regs)
 
     select_config(regs, VIRTIO_INPUT_CFG_ID_NAME, 0);
 
-    kprintf("[virtio-input] %s", regs->input.string);
+    printf("[virtio-input] %s", regs->input.string);
 
     select_config(regs, VIRTIO_INPUT_CFG_EV_BITS, VIRTIO_INPUT_CESS_KEY);
 
@@ -68,7 +69,7 @@ void init_virtio_input(struct VirtIOControlRegs *regs)
                 keys++;
             }
         }
-        kprintf(", %i keys", keys);
+        printf(", %i keys", keys);
     }
 
     select_config(regs, VIRTIO_INPUT_CFG_EV_BITS, VIRTIO_INPUT_CESS_REL);
@@ -79,7 +80,7 @@ void init_virtio_input(struct VirtIOControlRegs *regs)
                 axes++;
             }
         }
-        kprintf(", %i rel. axes", axes);
+        printf(", %i rel. axes", axes);
 
         if (axes) {
             mouse_axes = (regs->input.bitmap[0] & 3) == 3;
@@ -106,12 +107,12 @@ static bool get_mouse_event(int *dx, int *dy, bool *has_button, int *button,
 static void init_device(struct VirtIOControlRegs *regs, enum DEVICE dev)
 {
     if (devs[dev].vq.queue_size) {
-        kprintf("[virtio-input] Ignoring additional %s\n", dev_name[dev]);
+        printf("[virtio-input] Ignoring additional %s\n", dev_name[dev]);
         goto fail;
     }
 
     if (!vq_init(&devs[dev].vq, 0, &devs[dev].vq_storage, QUEUE_SIZE, regs)) {
-        kprintf("[virtio-input] FATAL: Failed to initialize %s vq\n",
+        printf("[virtio-input] FATAL: Failed to initialize %s vq\n",
                 dev_name[dev]);
         goto fail;
     }

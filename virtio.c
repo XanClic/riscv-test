@@ -1,9 +1,9 @@
 #include <assert.h>
 #include <config.h>
-#include <kprintf.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <virtio.h>
 #include <virtio-gpu.h>
 #include <virtio-input.h>

@@ -1,8 +1,8 @@
 #include <config.h>
-#include <kprintf.h>
 #include <platform.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <virtio.h>
 #include <virtio-gpu.h>
@@ -40,7 +40,7 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
         return;
     }
 
-    kprintf("[virtio-gpu] Found device @%p\n", (void *)regs);
+    printf("[virtio-gpu] Found device @%p\n", (void *)regs);
 
     uint64_t features = FF_ANY_LAYOUT | FF_VERSION_1;
     int ret = virtio_basic_negotiate(regs, &features);
@@ -69,7 +69,7 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
     }
 
     for (int i = 0; i < (int)regs->gpu.num_scanouts; i++) {
-        kprintf("[virtio-gpu] Scanout %i%s: %ix%i:%ix%i\n",
+        printf("[virtio-gpu] Scanout %i%s: %ix%i:%ix%i\n",
                 i, i ? " (unsupported)" : "",
                 di->pmodes[i].r.x, di->pmodes[i].r.y,
                 di->pmodes[i].r.width, di->pmodes[i].r.height);
@@ -86,7 +86,7 @@ void init_virtio_gpu(struct VirtIOControlRegs *regs)
     fb_height = di->pmodes[0].r.height;
 
 
-    kprintf("[virtio-gpu] Framebuffer set up @%p\n", (void *)framebuffer);
+    printf("[virtio-gpu] Framebuffer set up @%p\n", (void *)framebuffer);
 
 
     platform_funcs.framebuffer = get_framebuffer;
