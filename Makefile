@@ -11,7 +11,8 @@ CFLAGS += -DSERIAL_IS_SOUND
 
 OBJECTS = $(patsubst %.S,%.o,$(shell find -name '*.S')) \
           $(patsubst %.c,%.o,$(shell find -name '*.c')) \
-          $(patsubst %.ogg,%-bin.o,$(shell find -name '*.ogg'))
+          $(patsubst %.ogg,%-bin.o,$(shell find -name '*.ogg')) \
+          $(patsubst %.png,%-bin.o,$(shell find -name '*.png'))
 
 .PHONY: all clean
 
@@ -36,6 +37,13 @@ zlib-1.2.11/%.o: zlib-1.2.11/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %-bin.o: %.ogg
+	$(OBJCP) -I binary -O elf64-little -B riscv $< $@
+	@echo Setting RISC-V architecture:
+	echo -ne '\xf3' | dd of=$@ bs=1 seek=18 conv=notrunc status=none
+	@echo Setting machine flags:
+	echo -ne '\x05' | dd of=$@ bs=1 seek=48 conv=notrunc status=none
+
+%-bin.o: %.png
 	$(OBJCP) -I binary -O elf64-little -B riscv $< $@
 	@echo Setting RISC-V architecture:
 	echo -ne '\xf3' | dd of=$@ bs=1 seek=18 conv=notrunc status=none

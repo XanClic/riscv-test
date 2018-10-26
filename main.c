@@ -1,4 +1,5 @@
 #include <cpu.h>
+#include <image.h>
 #include <music.h>
 #include <nonstddef.h>
 #include <platform.h>
@@ -8,10 +9,13 @@
 
 
 #define CURSOR_SIZE 20
+static uint32_t *bg_image;
 
 static void draw_cursor(uint32_t *fb, int fbw, int fbh, size_t stride,
                         int x, int y, bool draw)
 {
+    uint32_t *fb_base = fb;
+
     fb += y * stride / 4 + x;
 
     for (int l = 0; l < CURSOR_SIZE && y + l < fbh; l++) {
@@ -38,7 +42,7 @@ static void draw_cursor(uint32_t *fb, int fbw, int fbh, size_t stride,
                 fb[i] = (i < w - bw) ? 0xffffff : 0;
             }
         } else {
-            memset32(fb, 0x404040, w);
+            memcpy(fb, bg_image + (fb - fb_base), w * sizeof(uint32_t));
         }
         fb += stride / 4;
     }
@@ -92,14 +96,19 @@ void main(void)
         return;
     }
 
-    PRINT("Framebuffer found, clearing it with gray\n");
+    init_images();
 
     uint32_t *fb = platform_funcs.framebuffer();
     int fbw = platform_funcs.fb_width();
     int fbh = platform_funcs.fb_height();
     size_t fb_stride = platform_funcs.fb_stride();
 
-    memset(fb, 0x40, fbh * fb_stride);
+    if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
+        PRINT("Failed to load background image\n");
+        return;
+    }
+
+    memcpy(fb, bg_image, fbh * fb_stride);
     platform_funcs.fb_flush(0, 0, 0, 0);
 
     int mouse_x = fbw / 2, mouse_y = fbh / 2;
