@@ -1,6 +1,7 @@
 #include <cpu.h>
 #include <kprintf.h>
 #include <music.h>
+#include <nonstddef.h>
 #include <platform.h>
 #include <string.h>
 
