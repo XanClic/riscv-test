@@ -41,7 +41,7 @@ static void handle_audio(void)
 
 #else // SERIAL_IS_SOUND
 
-#define BUFFER_MS 10
+#define BUFFER_MS 30
 
 #define MAX_TRACK_COUNT 16
 
