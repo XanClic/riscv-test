@@ -47,6 +47,7 @@ enum VirtIOInputConfigSelect {
 enum VirtIOInputConfigEvSubSel {
     VIRTIO_INPUT_CESS_KEY   = 0x01,
     VIRTIO_INPUT_CESS_REL   = 0x02,
+    VIRTIO_INPUT_CESS_ABS   = 0x03,
 };
 
 struct VirtIOInputEvent {

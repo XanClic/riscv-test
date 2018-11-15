@@ -146,7 +146,7 @@ typedef struct VirtQ {
     void *base; // Point to something of VirtQTotalSize(queue_size)
     int queue_index;
     int queue_size;
-    int desc_i, avail_i, used_i;
+    uint16_t desc_i, avail_i, used_i;
     volatile struct VirtIOControlRegs *regs;
 } VirtQ;
 

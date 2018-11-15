@@ -23,9 +23,18 @@ typedef struct PlatformFuncs {
     size_t (*fb_stride)(void);
     void (*fb_flush)(int x, int y, int w, int h);
 
+    bool (*setup_cursor)(uint32_t *data, int w, int h, int hot_x, int hot_y);
+    void (*move_cursor)(int x, int y);
+
+    bool (*need_cursor_updates)(void);
+
+    void (*limit_pointing_device)(int width, int height);
+
     bool (*get_keyboard_event)(int *key, bool *up);
-    bool (*get_mouse_event)(int *dx, int *dy, bool *has_button, int *button,
-                            bool *button_up);
+    bool (*get_pointing_event)(int *x, int *y, bool *has_button, int *button,
+                               bool *button_up);
+
+    bool (*has_absolute_pointing_device)(void);
 
     // completed() must be quick to return and may not call any audio
     // function.

@@ -10,61 +10,6 @@
 #include <string.h>
 
 
-#define CURSOR_SIZE 20
-static uint32_t *bg_image;
-extern uint32_t *abort_image;
-
-static void draw_cursor(uint32_t *fb, int fbw, int fbh, size_t stride,
-                        int x, int y, bool draw)
-{
-    uint32_t *fb_base = fb;
-
-    fb += y * stride / 4 + x;
-
-    for (int l = 0; l < CURSOR_SIZE && y + l < fbh; l++) {
-        int w = l;
-        int bw;
-
-        if (w >= 3 * CURSOR_SIZE / 4) {
-            w -= (w - 3 * CURSOR_SIZE / 4) * 4;
-            bw = 4;
-        } else {
-            w += 1;
-            bw = 1;
-        }
-
-        if (w == CURSOR_SIZE - 1) {
-            bw = w;
-        }
-
-        w = MIN(w, fbw - x);
-
-        if (draw) {
-            fb[0] = 0;
-            for (int i = 1; i < w; i++) {
-                fb[i] = (i < w - bw) ? 0xffffff : 0;
-            }
-        } else {
-            memcpy(fb, bg_image + (fb - fb_base), w * sizeof(uint32_t));
-        }
-        fb += stride / 4;
-    }
-}
-
-
-static int saturated_add(int x, int y, int min, int max)
-{
-    // Warning: Relies on undefined overflow behavior.
-    x += y;
-    if (x < min) {
-        return min;
-    } else if (x > max) {
-        return max;
-    }
-    return x;
-}
-
-
 #define PRINT(...) \
     do { \
         uint64_t time = platform_funcs.elapsed_us(); \
@@ -74,6 +19,9 @@ static int saturated_add(int x, int y, int min, int max)
 
 
 static int16_t key_sound[4000];
+
+static uint32_t *bg_image;
+extern uint32_t *abort_image;
 
 
 void main(void)
@@ -129,7 +77,29 @@ void main(void)
         abort();
     }
 
+
+    {
+        uint32_t *cursor = NULL;
+        int cursor_w = 0, cursor_h = 0;
+        if (!load_image("/cursor.png", &cursor, &cursor_w, &cursor_h, 0)) {
+            PRINT("Failed to load cursor sprite\n");
+            abort();
+        }
+
+        // FIXME: hot_x/hot_y
+        if (!platform_funcs.setup_cursor(cursor, cursor_w, cursor_h, 2, 4)) {
+            PRINT("Failed to setup the cursor\n");
+            abort();
+        }
+
+        free(cursor);
+    }
+
+    platform_funcs.limit_pointing_device(fbw, fbh);
+
+
     init_music();
+
 
     int16_t sample = 0;
     for (int i = 0; i < (int)ARRAY_SIZE(key_sound); i++) {
@@ -141,11 +111,13 @@ void main(void)
     int mouse_x = fbw / 2, mouse_y = fbh / 2;
 
     memcpy(fb, bg_image, fbh * fb_stride);
-    draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
     platform_funcs.fb_flush(0, 0, 0, 0);
 
+    bool need_cursor_updates = platform_funcs.need_cursor_updates &&
+        platform_funcs.need_cursor_updates();
+
     for (;;) {
-        int key, dx, dy, button;
+        int key, button;
         bool has_button, up, button_up;
 
         if (platform_funcs.get_keyboard_event(&key, &up)) {
@@ -157,33 +129,16 @@ void main(void)
             }
         }
 
-        if (platform_funcs.get_mouse_event(&dx, &dy, &has_button,
+        if (platform_funcs.get_pointing_event(&mouse_x, &mouse_y, &has_button,
                                               &button, &button_up))
         {
             if (has_button) {
                 PRINT("mouse button %i %s\n",
                       button, button_up ? "up" : "down");
             }
-            if (dx || dy) {
-                int omx = mouse_x, omy = mouse_y;
 
-                mouse_x = saturated_add(mouse_x, dx, 0, fbw);
-                mouse_y = saturated_add(mouse_y, dy, 0, fbh);
-
-                draw_cursor(fb, fbw, fbh, fb_stride, omx, omy, false);
-                draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
-
-                int fulx = MIN(omx, mouse_x);
-                int fuly = MIN(omy, mouse_y);
-                int flrx = MAX(omx, mouse_x);
-                int flry = MAX(omy, mouse_y);
-
-                // I'm lazy
-                flrx = saturated_add(flrx, CURSOR_SIZE, 0, fbw);
-                flry = saturated_add(flry, CURSOR_SIZE, 0, fbh);
-
-                platform_funcs.fb_flush(fulx, fuly,
-                                        flrx - fulx, flry - fuly);
+            if (need_cursor_updates) {
+                platform_funcs.move_cursor(mouse_x, mouse_y);
             }
         }
 

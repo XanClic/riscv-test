@@ -77,6 +77,13 @@ struct VirtIOGPURect {
     uint32_t height;
 } __attribute__((packed));
 
+struct VirtIOGPUCursorPos {
+    uint32_t scanout_id;
+    uint32_t x;
+    uint32_t y;
+    uint32_t padding;
+} __attribute__((packed));
+
 struct VirtIOGPUCtrlHdr {
     uint32_t type;
     uint32_t flags;
@@ -147,11 +154,18 @@ union VirtIOGPUCommand {
     struct VirtIOGPUTransferToHost2D transfer_to_host_2d;
 };
 
+struct VirtIOGPUCursorCommand {
+    struct VirtIOGPUCtrlHdr hdr;
+    struct VirtIOGPUCursorPos pos;
+    uint32_t resource_id;
+    uint32_t hot_x;
+    uint32_t hot_y;
+    uint32_t padding;
+} __attribute__((packed));
+
 union VirtIOGPUResponse {
     struct VirtIOGPUCtrlHdr hdr;
     struct VirtIOGPUDisplayInfo display_info;
-
-    uint8_t padding[PAGESIZE];
 };
 
 struct VirtIOControlRegs;
