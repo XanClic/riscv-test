@@ -1,4 +1,5 @@
 #include <cpu.h>
+#include <game-logic.h>
 #include <image.h>
 #include <incbinfs.h>
 #include <music.h>
@@ -18,9 +19,6 @@
     } while (0)
 
 
-static int16_t key_sound[4000];
-
-static uint32_t *bg_image;
 extern uint32_t *abort_image;
 
 
@@ -61,22 +59,18 @@ void main(void)
         abort();
     }
 
-    if (!load_image("/loading.png", &bg_image, &fbw, &fbh, fb_stride)) {
+    uint32_t *loading_image = NULL;
+    if (!load_image("/loading.png", &loading_image, &fbw, &fbh, fb_stride)) {
         PRINT("Failed to load loading screen\n"); // how ironic
         abort();
     }
 
-    memcpy(fb, bg_image, fbh * fb_stride);
+    memcpy(fb, loading_image, fbh * fb_stride);
     platform_funcs.fb_flush(0, 0, 0, 0);
+    free(loading_image);
 
 
     // Now initialize the rest
-
-    if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
-        PRINT("Failed to load background image\n");
-        abort();
-    }
-
 
     {
         uint32_t *cursor = NULL;
@@ -98,50 +92,13 @@ void main(void)
     platform_funcs.limit_pointing_device(fbw, fbh);
 
 
+    init_game();
+
     init_music();
 
 
-    int16_t sample = 0;
-    for (int i = 0; i < (int)ARRAY_SIZE(key_sound); i++) {
-        key_sound[i] = sample;
-        sample += 0x2000;
-    }
-
-
-    int mouse_x = fbw / 2, mouse_y = fbh / 2;
-
-    memcpy(fb, bg_image, fbh * fb_stride);
-    platform_funcs.fb_flush(0, 0, 0, 0);
-
-    bool need_cursor_updates = platform_funcs.need_cursor_updates &&
-        platform_funcs.need_cursor_updates();
-
     for (;;) {
-        int key, button;
-        bool has_button, up, button_up;
-
-        if (platform_funcs.get_keyboard_event(&key, &up)) {
-            PRINT("key %i %s\n", key, up ? "up" : "down");
-            if (!up) {
-                platform_funcs.queue_audio_track(key_sound,
-                                                 ARRAY_SIZE(key_sound),
-                                                 8000, 1, NULL);
-            }
-        }
-
-        if (platform_funcs.get_pointing_event(&mouse_x, &mouse_y, &has_button,
-                                              &button, &button_up))
-        {
-            if (has_button) {
-                PRINT("mouse button %i %s\n",
-                      button, button_up ? "up" : "down");
-            }
-
-            if (need_cursor_updates) {
-                platform_funcs.move_cursor(mouse_x, mouse_y);
-            }
-        }
-
+        handle_game();
         handle_music();
         platform_funcs.handle_audio();
     }
