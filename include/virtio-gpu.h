@@ -145,8 +145,6 @@ union VirtIOGPUCommand {
     struct VirtIOGPUSetScanout set_scanout;
     struct VirtIOGPUResourceFlush res_flush;
     struct VirtIOGPUTransferToHost2D transfer_to_host_2d;
-
-    uint8_t padding[PAGESIZE];
 };
 
 union VirtIOGPUResponse {
