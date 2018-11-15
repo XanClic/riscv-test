@@ -1,5 +1,6 @@
 #include <cpu.h>
 #include <image.h>
+#include <incbinfs.h>
 #include <music.h>
 #include <nonstddef.h>
 #include <platform.h>
@@ -91,30 +92,35 @@ void main(void)
     putchar('\n');
 
 
+    // Quick initialization to get a loading screen up
+
     if (!platform_funcs.framebuffer) {
         PRINT("No framebuffer found, shutting down\n");
         return;
     }
 
-    init_images();
+    init_incbinfs();
 
     uint32_t *fb = platform_funcs.framebuffer();
     int fbw = platform_funcs.fb_width();
     int fbh = platform_funcs.fb_height();
     size_t fb_stride = platform_funcs.fb_stride();
 
-    if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
-        PRINT("Failed to load background image\n");
+    if (!load_image("/loading.png", &bg_image, &fbw, &fbh, fb_stride)) {
+        PRINT("Failed to load loading screen\n"); // how ironic
         return;
     }
 
     memcpy(fb, bg_image, fbh * fb_stride);
     platform_funcs.fb_flush(0, 0, 0, 0);
 
-    int mouse_x = fbw / 2, mouse_y = fbh / 2;
 
-    draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
-    platform_funcs.fb_flush(mouse_x, mouse_y, CURSOR_SIZE, CURSOR_SIZE);
+    // Now initialize the rest
+
+    if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
+        PRINT("Failed to load background image\n");
+        return;
+    }
 
     init_music();
 
@@ -123,6 +129,13 @@ void main(void)
         key_sound[i] = sample;
         sample += 0x2000;
     }
+
+
+    int mouse_x = fbw / 2, mouse_y = fbh / 2;
+
+    memcpy(fb, bg_image, fbh * fb_stride);
+    draw_cursor(fb, fbw, fbh, fb_stride, mouse_x, mouse_y, true);
+    platform_funcs.fb_flush(0, 0, 0, 0);
 
     for (;;) {
         int key, dx, dy, button;

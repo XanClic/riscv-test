@@ -4,7 +4,7 @@ LD = riscv64-linux-gnu-ld
 OBJCP = riscv64-linux-gnu-objcopy
 RM = rm -f
 
-CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -Izlib-1.2.11 -Ilibpng-1.6.35 -g2 -DUSE_LOCKS=0
+CFLAGS = -ffreestanding -nostdinc -nodefaultlibs -Wall -Wextra -pedantic -Wshadow -Werror -std=c11 -O3 -mcmodel=medany -mstrict-align -Iinclude -Ilibogg-1.3.2/include -ITremor -Izlib-1.2.11 -Ilibpng-1.6.35 -g2 -DUSE_LOCKS=0
 ASFLAGS = -ffreestanding -nodefaultlibs -Wall -Wextra
 
 # Signify that the serial output is fed to something that plays

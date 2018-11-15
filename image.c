@@ -10,8 +10,6 @@
 #include <string.h>
 
 
-extern const void _binary_bg_png_start, _binary_bg_png_size;
-
 static const char *current_png;
 static bool png_had_error;
 
@@ -22,13 +20,6 @@ static void png_error_func(png_struct *png, const char *msg)
 
     png_had_error = true;
     printf("[image] %s: %s\n", current_png, msg);
-}
-
-
-void init_images(void)
-{
-    stdio_add_inode("/bg.png", &_binary_bg_png_start,
-                    (size_t)&_binary_bg_png_size);
 }
 
 

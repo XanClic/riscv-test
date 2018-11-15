@@ -7,8 +7,6 @@
 #include <stdlib.h>
 
 
-extern const void _binary_music_ogg_start, _binary_music_ogg_size;
-
 static uint64_t track_resume_at = -1;
 static int64_t music_frame_count;
 static int16_t *music_samples;
@@ -19,9 +17,6 @@ static void track_complete(void);
 
 void init_music(void)
 {
-    stdio_add_inode("/music.ogg", &_binary_music_ogg_start,
-                    (size_t)&_binary_music_ogg_size);
-
     FILE *fp = fopen("/music.ogg", "rb");
     if (!fp) {
         puts("[music] Failed to find /music.ogg");
