@@ -1,11 +1,22 @@
+#include <platform.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 
+uint32_t *abort_image;
+
+
 _Noreturn void abort(void)
 {
+    if (abort_image) {
+        memcpy(platform_funcs.framebuffer(),
+               abort_image,
+               platform_funcs.fb_height() * platform_funcs.fb_stride());
+        platform_funcs.fb_flush(0, 0, 0, 0);
+    }
+
     for (;;);
 }
 

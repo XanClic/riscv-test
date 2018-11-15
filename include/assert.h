@@ -4,6 +4,7 @@
 
 #ifndef NDEBUG
 
+#include <stdlib.h>
 #include <stdio.h>
 
 
@@ -18,7 +19,7 @@
             printf(__FILE__ ":" __quote(__LINE__) ": %s(): " \
                     "Assertion '" #assertion "' failed.\n", \
                     __func__); \
-            for (;;); \
+            abort(); \
         } \
     } while (0)
 

@@ -6,11 +6,13 @@
 #include <platform.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 
 #define CURSOR_SIZE 20
 static uint32_t *bg_image;
+extern uint32_t *abort_image;
 
 static void draw_cursor(uint32_t *fb, int fbw, int fbh, size_t stride,
                         int x, int y, bool draw)
@@ -96,7 +98,7 @@ void main(void)
 
     if (!platform_funcs.framebuffer) {
         PRINT("No framebuffer found, shutting down\n");
-        return;
+        abort();
     }
 
     init_incbinfs();
@@ -106,9 +108,14 @@ void main(void)
     int fbh = platform_funcs.fb_height();
     size_t fb_stride = platform_funcs.fb_stride();
 
+    if (!load_image("/abort.png", &abort_image, &fbw, &fbh, fb_stride)) {
+        PRINT("Failed to load abort screen\n");
+        abort();
+    }
+
     if (!load_image("/loading.png", &bg_image, &fbw, &fbh, fb_stride)) {
         PRINT("Failed to load loading screen\n"); // how ironic
-        return;
+        abort();
     }
 
     memcpy(fb, bg_image, fbh * fb_stride);
@@ -119,7 +126,7 @@ void main(void)
 
     if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
         PRINT("Failed to load background image\n");
-        return;
+        abort();
     }
 
     init_music();

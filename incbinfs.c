@@ -14,6 +14,7 @@
 
 void init_incbinfs(void)
 {
+    REF("/abort.png", abort_png);
     REF("/bg.png", bg_png);
     REF("/loading.png", loading_png);
     REF("/music.ogg", music_ogg);
