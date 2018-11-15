@@ -13,13 +13,12 @@
 
 static int fb_width, fb_height;
 
-static uint8_t vq_storage[VirtQTotalSize(QUEUE_SIZE)] \
-                   __attribute__((aligned(4096)));
+static _Alignas(4096) uint8_t vq_storage[VirtQTotalSize(QUEUE_SIZE)];
 static VirtQ vq;
 
-static union VirtIOGPUCommand gpu_command __attribute__((aligned(4096)));
-static union VirtIOGPUCommand gpu_command2 __attribute__((aligned(4096)));
-static union VirtIOGPUResponse gpu_response __attribute__((aligned(4096)));
+static _Alignas(4096) union VirtIOGPUCommand gpu_command;
+static _Alignas(4096) union VirtIOGPUCommand gpu_command2;
+static _Alignas(4096) union VirtIOGPUResponse gpu_response;
 
 static uint32_t *framebuffer;
 

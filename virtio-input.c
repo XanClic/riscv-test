@@ -24,12 +24,11 @@ static const char *const dev_name[DEVICE_COUNT] = {
 #define QUEUE_SIZE 8
 
 
-static struct {
-    uint8_t vq_storage[VirtQTotalSize(QUEUE_SIZE)] \
-        __attribute__((aligned(4096)));
-    struct VirtIOInputEvent evt[QUEUE_SIZE] __attribute__((aligned(16)));
+static _Alignas(4096) struct {
+    _Alignas(4096) uint8_t vq_storage[VirtQTotalSize(QUEUE_SIZE)];
+    _Alignas(16) struct VirtIOInputEvent evt[QUEUE_SIZE];
     VirtQ vq;
-} devs[DEVICE_COUNT] __attribute__((aligned(4096)));
+} devs[DEVICE_COUNT];
 
 
 static void init_device(struct VirtIOControlRegs *regs, enum DEVICE dev);
