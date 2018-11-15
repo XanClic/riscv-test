@@ -4,11 +4,11 @@
 
 #define REF(visible_name, underscored_name) \
     do { \
-        extern const void _binary_ ## underscored_name ## _start; \
-        extern const void _binary_ ## underscored_name ## _size; \
+        extern const void _binary_assets_ ## underscored_name ## _start; \
+        extern const void _binary_assets_ ## underscored_name ## _size; \
         stdio_add_inode(visible_name, \
-                        &_binary_ ## underscored_name ## _start, \
-                        (size_t)&_binary_ ## underscored_name ## _size); \
+            &_binary_assets_ ## underscored_name ## _start, \
+            (size_t)&_binary_assets_ ## underscored_name ## _size); \
     } while (0)
 
 

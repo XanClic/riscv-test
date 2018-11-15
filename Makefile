@@ -18,8 +18,8 @@ endif
 
 OBJECTS = $(patsubst %.S,%.o,$(shell find -name '*.S')) \
           $(patsubst %.c,%.o,$(shell find -name '*.c')) \
-          $(patsubst %.ogg,%-bin.o,$(shell find -name '*.ogg')) \
-          $(patsubst %.png,%-bin.o,$(shell find -name '*.png'))
+          $(patsubst %.ogg,%-bin.o,$(wildcard assets/*.ogg)) \
+          $(patsubst %.png,%-bin.o,$(wildcard assets/*.png))
 
 .PHONY: all clean
 

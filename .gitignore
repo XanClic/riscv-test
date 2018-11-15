@@ -1,5 +1,5 @@
 /kernel
 /cscope.*
-/bg.png
-/music.ogg
+/assets/bg.png
+/assets/music.ogg
 *.o
