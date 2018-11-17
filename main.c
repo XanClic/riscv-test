@@ -89,8 +89,6 @@ void main(void)
         free(cursor);
     }
 
-    platform_funcs.limit_pointing_device(fbw, fbh);
-
 
     init_game();
 

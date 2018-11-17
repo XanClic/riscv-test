@@ -1,8 +1,9 @@
-#include <countries.h>
+#include <assert.h>
 #include <game-logic.h>
 #include <image.h>
 #include <nonstddef.h>
 #include <platform.h>
+#include <regions.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,19 +23,21 @@ static uint32_t *fb;
 static int fbw, fbh;
 size_t fb_stride;
 
+static uint8_t *region_areas;
+
 static uint32_t *bg_image;
 
 static int army_img_w, army_img_h;
-static uint32_t *army_img[PARTY_COUNT][32];
+static uint32_t *army_img[PARTY_COUNT][100];
 
-static int country_focus_img_w, country_focus_img_h;
-static uint32_t *country_focus_img;
-static CountryID focused_country;
+static int region_focus_img_w, region_focus_img_h;
+static uint32_t *region_focus_img;
+static RegionID focused_region;
 
 
 void init_game(void)
 {
-    init_country_list();
+    init_region_list();
 
     fb = platform_funcs.framebuffer();
     fbw = platform_funcs.fb_width();
@@ -47,9 +50,42 @@ void init_game(void)
     mouse_x = fbw / 2;
     mouse_y = fbh / 2;
 
+    platform_funcs.limit_pointing_device(fbw, fbh);
+
     if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
         printf("Failed to load background image\n");
         abort();
+    }
+
+    uint32_t *region_areas_img = NULL;
+    if (!load_image("/region-areas.png", &region_areas_img, &fbw, &fbh, 0)) {
+        printf("Failed to load region area image\n");
+        abort();
+    }
+
+    region_areas = malloc(fbw * fbh);
+    uint32_t *region_areas_img_ptr = region_areas_img;
+    uint8_t *region_areas_ptr = region_areas;
+    for (int x = 0; x < fbw; x++) {
+        for (int y = 0; y < fbh; y++) {
+            uint32_t full_val = *(region_areas_img_ptr++);
+            int r = (full_val >> 16) & 0xff;
+            int g = (full_val >> 8) & 0xff;
+            int b = full_val & 0xff;
+
+            assert((!r || r == 0x80 || r == 0xff) &&
+                   (!g || g == 0x80 || g == 0xff) &&
+                   (!b || b == 0x80 || b == 0xff));
+
+            int region =
+                (!r ? 0 : r == 0x80 ? 1 : 2) +
+                (!g ? 0 : g == 0x80 ? 1 : 2) * 3 +
+                (!b ? 0 : b == 0x80 ? 1 : 2) * 9;
+
+            assert(region < (int)REGION_COUNT);
+
+            *(region_areas_ptr++) = region;
+        }
     }
 
     if (!load_image("/army-none.png", &army_img[RED][0],
@@ -60,7 +96,7 @@ void init_game(void)
     }
     army_img[BLUE][0] = army_img[RED][0];
 
-    for (int i = 1; i < 5; i++) {
+    for (int i = 1; i < 100; i++) {
         for (Party p = 0; p < PARTY_COUNT; p++) {
             char fname[32];
             snprintf(fname, sizeof(fname), "/army-%s-%i.png", party_name[p], i);
@@ -73,10 +109,10 @@ void init_game(void)
         }
     }
 
-    if (!load_image("/focus-country.png", &country_focus_img,
-                    &country_focus_img_w, &country_focus_img_h, 0))
+    if (!load_image("/focus-region.png", &region_focus_img,
+                    &region_focus_img_w, &region_focus_img_h, 0))
     {
-        printf("Failed to load focus-country.png\n");
+        printf("Failed to load focus-region.png\n");
         abort();
     }
 }
@@ -119,20 +155,20 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
                (xmax - xmin) * sizeof(uint32_t));
     }
 
-    for (CountryID i = 1; i < COUNTRY_COUNT; i++) {
-        ablitlmt(fb, army_img[countries[i].taken_by][countries[i].troops],
-                 countries[i].troops_pos.x - army_img_w / 2,
-                 countries[i].troops_pos.y - army_img_h / 2,
+    for (RegionID i = 1; i < REGION_COUNT; i++) {
+        ablitlmt(fb, army_img[regions[i].taken_by][regions[i].troops],
+                 regions[i].troops_pos.x - army_img_w / 2,
+                 regions[i].troops_pos.y - army_img_h / 2,
                  army_img_w, army_img_h, fb_stride,
                  army_img_w * sizeof(uint32_t),
                  xmin, ymin, xmax, ymax);
 
-        if (i == focused_country) {
-            ablitlmt(fb, country_focus_img,
-                     countries[i].troops_pos.x - country_focus_img_w / 2,
-                     countries[i].troops_pos.y - country_focus_img_h / 2,
-                     country_focus_img_w, country_focus_img_h,
-                     fb_stride, country_focus_img_w * sizeof(uint32_t),
+        if (i == focused_region) {
+            ablitlmt(fb, region_focus_img,
+                     regions[i].troops_pos.x - region_focus_img_w / 2,
+                     regions[i].troops_pos.y - region_focus_img_h / 2,
+                     region_focus_img_w, region_focus_img_h,
+                     fb_stride, region_focus_img_w * sizeof(uint32_t),
                      xmin, ymin, xmax, ymax);
         }
     }
@@ -175,35 +211,36 @@ void handle_game(void)
             platform_funcs.move_cursor(mouse_x, mouse_y);
         }
 
-        CountryID new_focused_country = NULL_COUNTRY;
+        // .get_pointing_event() returns coordinates limited by our
+        // previous call to .limit_pointing_device()
+        RegionID new_focused_region = region_areas[mouse_y * fbw + mouse_x];
 
-        if (mouse_x < 1300) {
-            int min_dist = 0x7fffffff;
-            for (int i = 1; i < (int)COUNTRY_COUNT; i++) {
-                int dx = mouse_x - countries[i].troops_pos.x;
-                int dy = mouse_y - countries[i].troops_pos.y;
-
-                int dist = dx * dx + dy * dy;
-                if (dist < min_dist) {
-                    new_focused_country = i;
-                    min_dist = dist;
-                }
+        if (new_focused_region != focused_region) {
+            int hcfw = region_focus_img_w / 2, hcfh = region_focus_img_h / 2;
+            if (focused_region) {
+                int tpx = regions[focused_region].troops_pos.x;
+                int tpy = regions[focused_region].troops_pos.y;
+                REFRESH_INCLUDE(tpx - hcfw, tpy - hcfh, tpx + hcfw, tpy + hcfh);
             }
+            if (new_focused_region) {
+                int tpx = regions[new_focused_region].troops_pos.x;
+                int tpy = regions[new_focused_region].troops_pos.y;
+                REFRESH_INCLUDE(tpx - hcfw, tpy - hcfh, tpx + hcfw, tpy + hcfh);
+            }
+            focused_region = new_focused_region;
         }
 
-        if (new_focused_country != focused_country) {
-            int hcfw = country_focus_img_w / 2, hcfh = country_focus_img_h / 2;
-            if (focused_country) {
-                int tpx = countries[focused_country].troops_pos.x;
-                int tpy = countries[focused_country].troops_pos.y;
+        if (has_button && button == 272 && !button_up) {
+            if (focused_region) {
+                regions[focused_region].taken_by = RED;
+                regions[focused_region].troops++;
+
+                int hcfw = region_focus_img_w / 2;
+                int hcfh = region_focus_img_h / 2;
+                int tpx = regions[focused_region].troops_pos.x;
+                int tpy = regions[focused_region].troops_pos.y;
                 REFRESH_INCLUDE(tpx - hcfw, tpy - hcfh, tpx + hcfw, tpy + hcfh);
             }
-            if (new_focused_country) {
-                int tpx = countries[new_focused_country].troops_pos.x;
-                int tpy = countries[new_focused_country].troops_pos.y;
-                REFRESH_INCLUDE(tpx - hcfw, tpy - hcfh, tpx + hcfw, tpy + hcfh);
-            }
-            focused_country = new_focused_country;
         }
     }
 
