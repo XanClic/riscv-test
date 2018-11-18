@@ -8,6 +8,8 @@ typedef enum Party {
     PARTY_COUNT
 } Party;
 
+#define PLAYER RED
+
 typedef enum ContinentID {
     NULL_CONTINENT,
 

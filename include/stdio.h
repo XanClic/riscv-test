@@ -30,6 +30,7 @@ typedef struct {
 
 
 void stdio_add_inode(const char *name, const void *base, size_t size);
+const void *stdio_get_pointer(const char *path, size_t *length);
 
 FILE *fopen(const char *pathname, const char *mode);
 int fclose(FILE *stream);

@@ -216,7 +216,9 @@ void init_incbinfs(void)
     REF("/army-red-99.png", army_red_99_png);
     REF("/bg.png", bg_png);
     REF("/cursor.png", cursor_png);
+    REF("/error-icon.png", error_icon_png);
     REF("/focus-region.png", focus_region_png);
+    REF("/font.npf", font_npf);
     REF("/loading.png", loading_png);
     REF("/music.ogg", music_ogg);
     REF("/region-areas.png", region_areas_png);

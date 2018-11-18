@@ -18,6 +18,7 @@ endif
 
 OBJECTS = $(patsubst %.S,%.o,$(shell find -name '*.S')) \
           $(patsubst %.c,%.o,$(shell find -name '*.c')) \
+          $(patsubst %.npf,%-bin.o,$(wildcard assets/*.npf)) \
           $(patsubst %.ogg,%-bin.o,$(wildcard assets/*.ogg)) \
           $(patsubst %.png,%-bin.o,$(wildcard assets/*.png))
 
@@ -42,6 +43,13 @@ zlib-1.2.11/%.o: zlib-1.2.11/%.c
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+%-bin.o: %.npf
+	$(OBJCP) -I binary -O elf64-little -B riscv $< $@
+	@echo Setting RISC-V architecture:
+	echo -ne '\xf3' | dd of=$@ bs=1 seek=18 conv=notrunc status=none
+	@echo Setting machine flags:
+	echo -ne '\x05' | dd of=$@ bs=1 seek=48 conv=notrunc status=none
 
 %-bin.o: %.ogg
 	$(OBJCP) -I binary -O elf64-little -B riscv $< $@

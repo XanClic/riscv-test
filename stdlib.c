@@ -69,3 +69,18 @@ void qsort(void *base, size_t nmemb, size_t size,
     qsort(element(0), i, size, compar);
     qsort(element(i), nmemb - i, size, compar);
 }
+
+
+static uint32_t rand_seed;
+
+// does not conform to any standards
+int rand(void)
+{
+    uint64_t eus = platform_funcs.elapsed_us();
+
+    // whatever
+    rand_seed += (eus | (eus >> 10)) + 0x3ed69f04 +
+                 (rand_seed << 16) + (rand_seed >> 16);
+
+    return rand_seed & 0x7fffffff;
+}

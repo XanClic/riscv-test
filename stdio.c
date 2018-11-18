@@ -39,6 +39,19 @@ FILE *fopen(const char *path, const char *mode)
 }
 
 
+const void *stdio_get_pointer(const char *path, size_t *length)
+{
+    for (int i = 0; i < inode_count; i++) {
+        if (!strcmp(path, inodes[i].name)) {
+            *length = inodes[i].size;
+            return inodes[i].base;
+        }
+    }
+
+    return NULL;
+}
+
+
 int fclose(FILE *stream)
 {
     free(stream);

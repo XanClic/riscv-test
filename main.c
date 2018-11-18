@@ -1,4 +1,5 @@
 #include <cpu.h>
+#include <font.h>
 #include <game-logic.h>
 #include <image.h>
 #include <incbinfs.h>
@@ -90,8 +91,8 @@ void main(void)
     }
 
 
+    init_font();
     init_game();
-
     init_music();
 
 

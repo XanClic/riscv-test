@@ -17,6 +17,13 @@ char *strcat(char *dest, const char *src)
 }
 
 
+char *strchr(const char *s, int c)
+{
+    for (; *s && *s != c; s++);
+    return (char *)s;
+}
+
+
 int strcmp(const char *s1, const char *s2)
 {
     int diff = 0;
@@ -46,6 +53,24 @@ size_t strlen(const char *s)
     while (*(s++)) {
         len++;
     }
+    return len;
+}
+
+
+int strncmp(const char *s1, const char *s2, size_t n)
+{
+    int diff = 0;
+
+    while (n-- && *s1 && (diff = *(s1++) - *(s2++)) == 0);
+
+    return diff;
+}
+
+
+size_t strcspn(const char *s, const char *reject)
+{
+    size_t len;
+    for (len = 0; *s && !strchr(reject, *s); s++, len++);
     return len;
 }
 

@@ -17,6 +17,8 @@ void free(void *ptr);
 
 _Noreturn void abort(void);
 
+int rand(void);
+
 void qsort(void *base, size_t nmemb, size_t size,
            int (*compar)(const void *, const void *));
 
