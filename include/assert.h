@@ -19,7 +19,7 @@
             printf(__FILE__ ":" __quote(__LINE__) ": %s(): " \
                     "Assertion '" #assertion "' failed.\n", \
                     __func__); \
-            abort(); \
+            _abort(); \
         } \
     } while (0)
 

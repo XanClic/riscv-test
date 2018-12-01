@@ -8,7 +8,7 @@
 uint32_t *abort_image;
 
 
-_Noreturn void abort(void)
+_Noreturn void _abort(void)
 {
     if (abort_image) {
         memcpy(platform_funcs.framebuffer(),
