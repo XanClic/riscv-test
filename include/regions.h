@@ -66,6 +66,7 @@ typedef struct Region {
 
 
 extern struct Region regions[REGION_COUNT];
+extern int continent_bonuses[CONTINENT_COUNT];
 
 
 void init_region_list(void);

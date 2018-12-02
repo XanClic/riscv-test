@@ -126,6 +126,14 @@ struct Region regions[REGION_COUNT] = {
 };
 
 
+int continent_bonuses[CONTINENT_COUNT] = {
+    [ERIADOR] = 2,
+    [ROHAN_RHOVANION] = 3,
+    [GONDOR] = 2,
+    [MORDOR] = 1,
+};
+
+
 void init_region_list(void)
 {
     for (RegionID i = 1; i < REGION_COUNT; i++) {

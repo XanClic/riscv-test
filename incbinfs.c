@@ -214,8 +214,16 @@ void init_incbinfs(void)
     REF("/army-red-97.png", army_red_97_png);
     REF("/army-red-98.png", army_red_98_png);
     REF("/army-red-99.png", army_red_99_png);
+    REF("/attacked-region.png", attacked_region_png);
+    REF("/attacking-region.png", attacking_region_png);
     REF("/bg.png", bg_png);
     REF("/cursor.png", cursor_png);
+    REF("/die-1.png", die_1_png);
+    REF("/die-2.png", die_2_png);
+    REF("/die-3.png", die_3_png);
+    REF("/die-4.png", die_4_png);
+    REF("/die-5.png", die_5_png);
+    REF("/die-6.png", die_6_png);
     REF("/error-icon.png", error_icon_png);
     REF("/focus-region.png", focus_region_png);
     REF("/font.npf", font_npf);
