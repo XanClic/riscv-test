@@ -582,9 +582,9 @@ static bool battle(RegionID attacking, RegionID defending,
 
     char casualties[128];
     snprintf(casualties, sizeof(casualties),
-             "Attacker lost %i unit%s, defender lost %i unit%s",
-             attacking_losses, attacking_losses == 1 ? "" : "s",
-             defending_losses, defending_losses == 1 ? "" : "s");
+             "Attacker lost %i %s, defender lost %i %s",
+             attacking_losses, attacking_losses == 1 ? "army" : "armies",
+             defending_losses, defending_losses == 1 ? "army" : "armies");
     font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_ERROR_Y,
                    casualties, 0);
 
@@ -816,7 +816,7 @@ void handle_game(void)
                 invalid_move("This region does not belong to you");
                 goto post_logic;
             } else if (regions[focused_region].troops < 2) {
-                invalid_move("To attack, you need at least two units");
+                invalid_move("To attack, you need at least two armies");
                 goto post_logic;
             }
 
@@ -869,7 +869,7 @@ void handle_game(void)
                            "Choose enemy-controlled region to attack", 0);
         } else {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose how many units you want to attack with "
+                           "Choose how many armies you want to attack with "
                            "(1, 2, or 3)", 0);
             integer_prompt = ATTACK_TROOPS_COUNT;
         }
@@ -888,10 +888,10 @@ void handle_game(void)
         integer_prompt_done = NO_PROMPT;
 
         if (attacking_count < 1 || attacking_count > 3) {
-            invalid_move("Invalid number of attacking units");
+            invalid_move("Invalid number of attacking armies");
             goto post_logic;
         } else if (regions[attacking_region].troops < attacking_count + 1) {
-            invalid_move("Cannot attack with this many units (at least one "
+            invalid_move("Cannot attack with this many armies (at least one "
                          "must be left behind)");
             goto post_logic;
         }
@@ -908,7 +908,7 @@ void handle_game(void)
         {
             clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose how many units you want to move to the "
+                           "Choose how many armies you want to move to the "
                            "conquered region", 0);
             platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
                                     STATUS_TODO_H);
@@ -945,10 +945,10 @@ void handle_game(void)
         integer_prompt_done = NO_PROMPT;
 
         if (regions[attacking_region].troops < moving_troops) {
-            invalid_move("Not enough units in the attacking region");
+            invalid_move("Not enough armies in the attacking region");
             goto post_logic;
         } else if (regions[attacking_region].troops == moving_troops) {
-            invalid_move("At least one unit has to stay behind");
+            invalid_move("At least one army has to stay behind");
             goto post_logic;
         }
 
