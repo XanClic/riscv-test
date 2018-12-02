@@ -3,6 +3,7 @@
 #include <game-logic.h>
 #include <image.h>
 #include <keycodes.h>
+#include <limits.h>
 #include <nonstddef.h>
 #include <platform.h>
 #include <regions.h>
@@ -21,6 +22,7 @@ typedef enum GamePhase {
     INITIALIZATION,
     PREPARATION,
     MAIN,
+    GAME_OVER,
 } GamePhase;
 
 typedef enum MainPhase {
@@ -60,13 +62,15 @@ static size_t fb_stride;
 static uint8_t *region_areas;
 
 static uint32_t *bg_image;
+static uint32_t *defeat_img, *victory_img;
 
 static int army_img_w, army_img_h;
 static uint32_t *army_img[PARTY_COUNT][100];
 
-static RegionID focused_region;
-static RegionID attacking_region, attacked_region;
+static RegionID ai_focused_region, focused_region;
+static RegionID attacking_region, defending_region;
 static RegionID origin_region, destination_region;
+static int attacking_count, defending_count;
 
 static LoadedImage region_focus_img, attacking_region_img, attacked_region_img;
 static LoadedImage origin_region_img, destination_region_img, error_icon;
@@ -104,6 +108,8 @@ static enum IntegerPromptPurpose integer_prompt;
 static enum IntegerPromptPurpose integer_prompt_done;
 static int integer_prompt_chrs = -1;
 static int integer_prompt_value;
+
+static bool party_defeated[PARTY_COUNT];
 
 
 void init_game(void)
@@ -240,6 +246,16 @@ void init_game(void)
             abort();
         }
     }
+
+    if (!load_image("/defeat.png", &defeat_img, &fbw, &fbh, 0)) {
+        puts("Failed to load defeat.png");
+        abort();
+    }
+
+    if (!load_image("/victory.png", &victory_img, &fbw, &fbh, 0)) {
+        puts("Failed to load victory.png");
+        abort();
+    }
 }
 
 
@@ -332,7 +348,7 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
                      xmin, ymin, xmax, ymax);
         }
 
-        if (i == attacked_region) {
+        if (i == defending_region) {
             ablitlmt(fb, attacked_region_img.d,
                      regions[i].troops_pos.x - attacked_region_img.w / 2,
                      regions[i].troops_pos.y - attacked_region_img.h / 2,
@@ -359,6 +375,15 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
                      xmin, ymin, xmax, ymax);
         }
 
+        if (i == ai_focused_region) {
+            ablitlmt(fb, region_focus_img.d,
+                     regions[i].troops_pos.x - region_focus_img.w / 2,
+                     regions[i].troops_pos.y - region_focus_img.h / 2,
+                     region_focus_img.w, region_focus_img.h,
+                     fb_stride, region_focus_img.w * sizeof(uint32_t),
+                     xmin, ymin, xmax, ymax);
+        }
+
         if (i == focused_region) {
             ablitlmt(fb, region_focus_img.d,
                      regions[i].troops_pos.x - region_focus_img.w / 2,
@@ -369,26 +394,44 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
         }
     }
 
+    if (game_phase == GAME_OVER) {
+        if (party_defeated[PLAYER]) {
+            ablitlmt(fb, defeat_img, 0, 0, fbw, fbh, fb_stride,
+                     fbw * sizeof(uint32_t), xmin, ymin, xmax, ymax);
+        } else {
+            ablitlmt(fb, victory_img, 0, 0, fbw, fbh, fb_stride,
+                     fbw * sizeof(uint32_t), xmin, ymin, xmax, ymax);
+        }
+    }
+
     platform_funcs.fb_flush(xmin, ymin, xmax - xmin, ymax - ymin);
 }
 
 
-static void invalid_move(const char *message)
-{
-    char full_msg[256];
+static void clear_invalid_move(void);
 
-    snprintf(full_msg, sizeof(full_msg), "Invalid move: %s", message);
-    puts(full_msg);
+static void important_message(const char *message)
+{
+    clear_invalid_move();
+
+    puts(message);
 
     ablitlmt(fb, error_icon.d, STATUS_X, STATUS_ERROR_Y, error_icon.w,
              error_icon.h, fb_stride, error_icon.w * sizeof(uint32_t), 0, 0,
              fbw, fbh);
 
     font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X + error_icon.w + 10,
-                   STATUS_ERROR_Y, full_msg, 0x400000);
+                   STATUS_ERROR_Y, message, 0x400000);
 
     platform_funcs.fb_flush(STATUS_X, STATUS_ERROR_Y,
                             fbw - STATUS_X, fbh - STATUS_ERROR_Y);
+}
+
+static void invalid_move(const char *message)
+{
+    char full_msg[256];
+    snprintf(full_msg, sizeof(full_msg), "Invalid move: %s", message);
+    important_message(full_msg);
 
     // TODO: DOOOOT sound
 }
@@ -405,7 +448,7 @@ static void clear_invalid_move(void)
 static void switch_main_phase(Party p, MainPhase new_phase)
 {
     switch (new_phase) {
-        case MAIN_WAITING_FOR_OTHER:
+        case MAIN_WAITING_FOR_OTHER: {
             if (p == PLAYER) {
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
@@ -413,8 +456,22 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                                0x404040);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
-            switch_main_phase((p + 1) % PARTY_COUNT, MAIN_REINFORCEMENT);
+
+            if (game_phase == MAIN) {
+                Party np;
+                for (np = (p + 1) % PARTY_COUNT; np != p;
+                     np = (np + 1) % PARTY_COUNT)
+                {
+                    if (!party_defeated[np]) {
+                        switch_main_phase(np, MAIN_REINFORCEMENT);
+                        break;
+                    }
+                }
+                assert(p != np); // haha, got you now
+                // (if p == np, the game is over already)
+            }
             break;
+        }
 
         case MAIN_REINFORCEMENT: {
             int regions_taken = 0;
@@ -517,67 +574,88 @@ static void switch_game_phase(GamePhase new_phase)
         }
 
         case MAIN:
-            switch_main_phase(0, MAIN_REINFORCEMENT);
+            for (Party p = 0; p < PARTY_COUNT; p++) {
+                switch_main_phase(p, MAIN_WAITING_FOR_OTHER);
+            }
+            switch_main_phase(rand() % PARTY_COUNT, MAIN_REINFORCEMENT);
             break;
+
+        case GAME_OVER: {
+            for (Party p = 0; p < PARTY_COUNT; p++) {
+                main_phase[p] = MAIN_WAITING_FOR_OTHER;
+            }
+
+            ai_focused_region = focused_region = NULL_REGION;
+            attacking_region = defending_region = NULL_REGION;
+            origin_region = destination_region = NULL_REGION;
+
+            clear_to_bg(STATUS_X, 0, fbw - STATUS_X, STATUS_ERROR_Y);
+
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_PHASE_Y,
+                           "Game over", 0x404040);
+
+            if (party_defeated[PLAYER]) {
+                ablitlmt(fb, defeat_img, 0, 0, fbw, fbh, fb_stride,
+                         fbw * sizeof(uint32_t), STATUS_X, 0, fbw, fbh);
+            } else {
+                ablitlmt(fb, victory_img, 0, 0, fbw, fbh, fb_stride,
+                             fbw * sizeof(uint32_t), STATUS_X, 0, fbw, fbh);
+            }
+
+            platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
+            break;
+        }
 
         default:
             abort();
     }
 
     game_phase = new_phase;
+
+    if (game_phase == GAME_OVER) {
+        refresh(0, 0, STATUS_X, fbh);
+    }
 }
 
 
-static RegionID ai_place_troops(Party p)
+static int ai_choose_defense_count(void)
 {
-    if (!troops_to_place[p]) {
-        return NULL_REGION;
-    }
-
-    int empty_region_count = 0, my_region_count = 0;
-    for (RegionID r = 1; r < REGION_COUNT; r++) {
-        if (!regions[r].troops) {
-            empty_region_count++;
-        } else if (regions[r].taken_by == p) {
-            my_region_count++;
-        }
-    }
-
-    if (empty_region_count) {
-        int empty_region_index = rand() % empty_region_count;
-
-        for (RegionID r = 1; r < REGION_COUNT; r++) {
-            if (!regions[r].troops && !empty_region_index--) {
-                regions[r].taken_by = p;
-                regions[r].troops = 1;
-                troops_to_place[p]--;
-                return r;
-            }
-        }
-    } else if (my_region_count) {
-        int my_region_index = rand() % my_region_count;
-
-        for (RegionID r = 1; r < REGION_COUNT; r++) {
-            if (regions[r].troops && regions[r].taken_by == p &&
-                !my_region_index--)
-            {
-                regions[r].troops++;
-                troops_to_place[p]--;
-                return r;
-            }
-        }
-    }
-
-    abort();
+    return MIN(regions[defending_region].troops, 2);
 }
 
-static int ai_choose_defense_count(RegionID attacked, RegionID attacking,
-                                   int attacking_count)
-{
-    (void)attacking;
-    (void)attacking_count;
 
-    return MIN(regions[attacked].troops, 2);
+static void check_win_condition(void)
+{
+    int parties_active = 0;
+
+    for (Party p = 0; p < PARTY_COUNT; p++) {
+        if (party_defeated[p]) {
+            continue;
+        }
+
+        bool has_region = false;
+        for (RegionID r = 1; r < REGION_COUNT; r++) {
+            if (regions[r].troops && regions[r].taken_by == p) {
+                has_region = true;
+                break;
+            }
+        }
+
+        if (has_region) {
+            parties_active++;
+        } else {
+            party_defeated[p] = true;
+
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Player %s has been defeated",
+                     party_name[p]);
+            important_message(msg);
+        }
+    }
+
+    if (party_defeated[PLAYER] || parties_active == 1) {
+        switch_game_phase(GAME_OVER);
+    }
 }
 
 
@@ -587,8 +665,7 @@ static int compare_ints_rev(const void *x, const void *y)
 }
 
 // Battles and returns true if the defending region is empty after
-static bool battle(RegionID attacking, RegionID defending,
-                   int attacking_count, int defending_count)
+static bool battle(void)
 {
     assert(attacking_count >= 1 && attacking_count <= 3 &&
            defending_count >= 1 && defending_count <= 2);
@@ -642,19 +719,22 @@ static bool battle(RegionID attacking, RegionID defending,
     font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_ERROR_Y,
                    casualties, 0);
 
-    regions[attacking].troops -= attacking_losses;
-    regions[defending].troops -= defending_losses;
+    regions[attacking_region].troops -= attacking_losses;
+    regions[defending_region].troops -= defending_losses;
 
     platform_funcs.fb_flush(STATUS_X, start_y, fbw - STATUS_X, fbh - start_y);
 
-    if (regions[defending].troops) {
+    if (regions[defending_region].troops) {
         return false;
     } else {
         int troops_moved = attacking_count - attacking_losses;
 
-        regions[defending].taken_by = regions[attacking].taken_by;
-        regions[attacking].troops -= troops_moved;
-        regions[defending].troops += troops_moved;
+        regions[defending_region].taken_by = regions[attacking_region].taken_by;
+        regions[attacking_region].troops -= troops_moved;
+        regions[defending_region].troops += troops_moved;
+
+        check_win_condition();
+
         return true;
     }
 }
@@ -709,6 +789,354 @@ static bool friendly_connection(RegionID origin, RegionID destination)
     } while (0)
 
 
+// TODO: This just has no strategy
+static bool get_ai_battle_params(Party p, RegionID *attacking,
+                                 RegionID *attacked, int *attack_count)
+{
+    int best_score = INT_MIN;
+
+    for (RegionID r = 1; r < REGION_COUNT; r++) {
+        if (regions[r].taken_by != p || regions[r].troops <= 1) {
+            continue;
+        }
+
+        for (int i = 0; i < regions[r].neighbor_count; i++) {
+            RegionID d = regions[r].neighbors[i];
+            if (regions[d].taken_by == p) {
+                continue;
+            }
+
+            bool last_in_continent = true;
+            ContinentID c = regions[d].continent;
+            for (RegionID cr = 1; cr < REGION_COUNT; cr++) {
+                if (cr != d && regions[cr].continent == c &&
+                    regions[cr].taken_by != p)
+                {
+                    last_in_continent = false;
+                    break;
+                }
+            }
+
+            int score = regions[r].troops - regions[d].troops;
+            if (last_in_continent) {
+                score += 5;
+            }
+
+            score -= rand() % 2;
+
+            if (score > best_score) {
+                best_score = score;
+                *attacking = r;
+                *attacked = d;
+
+                if (regions[d].troops == 1 && regions[r].troops < 5) {
+                    *attack_count = MIN(2, regions[r].troops - 1);
+                } else {
+                    *attack_count = MIN(3, regions[r].troops - 1);
+                }
+            }
+        }
+    }
+
+    if (best_score <= -(rand() % 5)) {
+        *attacking = NULL_REGION;
+        *attacked = NULL_REGION;
+        *attack_count = 0;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+static void do_ai_find_connected_dest(Party p, RegionID o, RegionID *d,
+                                      int *best_score,
+                                      bool region_seen[REGION_COUNT])
+{
+    if (region_seen[o]) {
+        return;
+    }
+    region_seen[o] = true;
+
+    if (regions[o].taken_by != p) {
+        return;
+    }
+
+    int enemy_count = 0;
+    for (int i = 0; i < regions[o].neighbor_count; i++) {
+        RegionID n = regions[o].neighbors[i];
+        if (regions[n].taken_by != p) {
+            enemy_count++;
+        }
+
+        do_ai_find_connected_dest(p, n, d, best_score, region_seen);
+    }
+
+    if (enemy_count && enemy_count > *best_score) {
+        *best_score = enemy_count;
+        *d = o;
+    }
+}
+
+static void ai_find_connected_dest(Party p, RegionID o, RegionID *d,
+                                   int *best_score)
+{
+    bool region_seen[REGION_COUNT] = { false };
+    do_ai_find_connected_dest(p, o, d, best_score, region_seen);
+}
+
+// FIXME (as in, much TODO)
+static void ai_move(Party p)
+{
+    static bool movement_started;
+    static bool tictoc = false;
+
+    if (tictoc) {
+        tictoc = false;
+
+        if (game_phase == PREPARATION ||
+            main_phase[p] == MAIN_REINFORCEMENT)
+        {
+            regions[ai_focused_region].troops++;
+            troops_to_place[p]--;
+        } else if (main_phase[p] == MAIN_BATTLE) {
+            if (battle()) {
+                if (game_phase == GAME_OVER) {
+                    return;
+                }
+
+                bool has_enemy_neighbors = false;
+                for (int i = 0; i < regions[attacking_region].neighbor_count; i++) {
+                    RegionID n = regions[attacking_region].neighbors[i];
+                    if (regions[n].taken_by != p) {
+                        has_enemy_neighbors = true;
+                        break;
+                    }
+                }
+
+                int move = has_enemy_neighbors ?
+                    (regions[attacking_region].troops -
+                     regions[defending_region].troops) / 2 :
+                    regions[attacking_region].troops - 1;
+
+                if (move > 0) {
+                    regions[attacking_region].troops -= move;
+                    regions[defending_region].troops += move;
+                }
+            }
+        } else if (main_phase[p] == MAIN_MOVEMENT) {
+            if (origin_region) {
+                int move = regions[origin_region].troops - 1;
+                regions[origin_region].troops -= move;
+                regions[destination_region].troops += move;
+            }
+        }
+
+        return;
+    }
+    tictoc = true;
+
+    ai_focused_region = NULL_REGION;
+    attacking_region = defending_region = NULL_REGION;
+    origin_region = destination_region = NULL_REGION;
+
+    if (game_phase == PREPARATION ||
+        main_phase[p] == MAIN_REINFORCEMENT)
+    {
+        if (!troops_to_place[p]) {
+            if (game_phase == MAIN) {
+                switch_main_phase(p, MAIN_BATTLE);
+            }
+            tictoc = false;
+            return;
+        }
+
+        int region_scores[REGION_COUNT] = { 0 };
+
+        // Try to reinforce regions around the last region of a
+        // continent not yet owned; and to reinforce regions around
+        // continents fully owned by opponents
+        // (The latter only really makes sense with a single opponent,
+        // though)
+        for (ContinentID c = 1; c < CONTINENT_COUNT; c++) {
+            int cont_regions_owned = 0, cont_regions_not_owned = 0;
+            RegionID not_owned_region = NULL_REGION;
+
+            for (RegionID r = 1; r < REGION_COUNT; r++) {
+                if (regions[r].continent != c) {
+                    continue;
+                }
+
+                if (regions[r].taken_by == p) {
+                    cont_regions_owned++;
+                } else {
+                    cont_regions_not_owned++;
+                    not_owned_region = r;
+                }
+            }
+
+            if (cont_regions_not_owned == 1) {
+                for (int i = 0; i < regions[not_owned_region].neighbor_count;
+                     i++)
+                {
+                    RegionID n = regions[not_owned_region].neighbors[i];
+                    if (regions[n].taken_by != p) {
+                        continue;
+                    }
+
+                    region_scores[n] += 20;
+                }
+            } else if (cont_regions_owned == 0) {
+                for (RegionID r = 1; r < REGION_COUNT; r++) {
+                    if (regions[r].continent != c) {
+                        continue;
+                    }
+
+                    for (int i = 0; i < regions[r].neighbor_count; i++) {
+                        RegionID n = regions[r].neighbors[i];
+                        if (regions[n].taken_by != p) {
+                            continue;
+                        }
+
+                        region_scores[n] += 5;
+                    }
+                }
+            }
+        }
+
+        // Now hand additional score to regions that are around (weak)
+        // enemy regions (and need reinforcements)
+        for (RegionID r = 1; r < REGION_COUNT; r++) {
+            if (regions[r].taken_by != p) {
+                continue;
+            }
+
+            for (int i = 0; i < regions[r].neighbor_count; i++) {
+                RegionID n = regions[r].neighbors[i];
+                if (regions[n].taken_by == p) {
+                    continue;
+                }
+
+                int diff = regions[r].troops - regions[n].troops;
+                if (diff < -troops_to_place[p]) {
+                    // All is lost
+                    region_scores[r] -= 20;
+                } else if (diff < 0) {
+                    region_scores[r] += -diff + 1;
+                } else {
+                    region_scores[r] += 1;
+                }
+            }
+        }
+
+        int best_score = INT_MIN;
+        RegionID best_region = NULL_REGION;
+        for (RegionID r = 1; r < REGION_COUNT; r++) {
+            if (regions[r].taken_by == p && region_scores[r] > best_score) {
+                best_score = region_scores[r];
+                best_region = r;
+            }
+        }
+
+        assert(best_region);
+        ai_focused_region = best_region;
+    } else if (main_phase[p] == MAIN_BATTLE) {
+        if (!get_ai_battle_params(p, &attacking_region, &defending_region,
+                                  &attacking_count))
+        {
+            switch_main_phase(p, MAIN_MOVEMENT);
+            tictoc = false;
+            movement_started = true;
+            return;
+        }
+
+        assert(attacking_region && defending_region && attacking_count);
+        assert(regions[attacking_region].taken_by == p);
+        assert(regions[defending_region].taken_by != p);
+
+        // FIXME
+        defending_count = ai_choose_defense_count();
+    } else if (main_phase[p] == MAIN_MOVEMENT) {
+        if (!movement_started) {
+            tictoc = false;
+            switch_main_phase(p, MAIN_WAITING_FOR_OTHER);
+            return;
+        }
+        movement_started = false;
+
+        int best_score = INT_MIN;
+        for (RegionID r = 1; r < REGION_COUNT; r++) {
+            if (regions[r].taken_by != p || regions[r].troops <= 1) {
+                continue;
+            }
+
+            bool has_enemy_neighbors = false;
+            for (int i = 0; i < regions[r].neighbor_count; i++) {
+                if (regions[regions[r].neighbors[i]].taken_by != p) {
+                    has_enemy_neighbors = true;
+                    break;
+                }
+            }
+
+            if (has_enemy_neighbors) {
+                continue;
+            }
+
+            RegionID d = NULL_REGION;
+            int new_score = best_score;
+            ai_find_connected_dest(p, r, &d, &new_score);
+
+            if (new_score > best_score) {
+                best_score = new_score;
+                assert(friendly_connection(r, d));
+                origin_region = r;
+                destination_region = d;
+            }
+        }
+
+        if (best_score == INT_MIN) {
+            tictoc = false;
+            switch_main_phase(p, MAIN_WAITING_FOR_OTHER);
+            return;
+        }
+    }
+}
+
+
+static void ai_place_troops(Party p)
+{
+    if (!troops_to_place[p]) {
+        return;
+    }
+
+    int empty_region_count = 0, my_region_count = 0;
+    for (RegionID r = 1; r < REGION_COUNT; r++) {
+        if (!regions[r].troops) {
+            empty_region_count++;
+        } else if (regions[r].taken_by == p) {
+            my_region_count++;
+        }
+    }
+
+    if (empty_region_count) {
+        // TODO: This is just random
+
+        int empty_region_index = rand() % empty_region_count;
+
+        for (RegionID r = 1; r < REGION_COUNT; r++) {
+            if (!regions[r].troops && !empty_region_index--) {
+                regions[r].taken_by = p;
+                regions[r].troops = 1;
+                troops_to_place[p]--;
+                return;
+            }
+        }
+    } else if (my_region_count) {
+        ai_move(p); // tic
+        ai_move(p); // toc
+    }
+}
+
+
 void handle_game(void)
 {
     int refresh_xmin = fbw, refresh_xmax = 0;
@@ -724,24 +1152,33 @@ void handle_game(void)
     bool has_button, key_up, button_up;
     bool lbuttondown = false;
 
-    if (platform_funcs.get_keyboard_event(&key, &key_up) && !key_up) {
+    bool got_key_event, got_pointing_event;
+
+    got_key_event = platform_funcs.get_keyboard_event(&key, &key_up);
+    got_pointing_event = platform_funcs.get_pointing_event(&mouse_x, &mouse_y,
+                                                           &has_button, &button,
+                                                           &button_up);
+
+    if (got_pointing_event && need_cursor_updates) {
+        platform_funcs.move_cursor(mouse_x, mouse_y);
+    }
+
+    if (game_phase == GAME_OVER) {
+        return;
+    }
+
+    if (got_key_event && !key_up) {
         key_pressed = key;
         clear_invalid_move();
     }
 
-    if (platform_funcs.get_pointing_event(&mouse_x, &mouse_y, &has_button,
-                                          &button, &button_up))
-    {
-        if (need_cursor_updates) {
-            platform_funcs.move_cursor(mouse_x, mouse_y);
-        }
-
+    if (got_pointing_event) {
         if (has_button && !button_up) {
             clear_invalid_move();
         }
 
         // .get_pointing_event() returns coordinates limited by our
-        // previous call to .limit_pointing_device()
+        // previous call to .limitpointing_device()
         RegionID new_focused_region = region_areas[mouse_y * fbw + mouse_x];
 
         if (new_focused_region != focused_region) {
@@ -850,7 +1287,8 @@ void handle_game(void)
             }
         }
 
-        REFRESH_INCLUDE_REGION_TROOPS(focused_region);
+        // I'm so lazy
+        REFRESH_INCLUDE(0, 0, fbw, fbh);
 
         troops_to_place[PLAYER]--;
 
@@ -871,10 +1309,7 @@ void handle_game(void)
             if (p == PLAYER) {
                 continue;
             }
-            RegionID r = ai_place_troops(p);
-            if (r) {
-                REFRESH_INCLUDE_REGION_TROOPS(r);
-            }
+            ai_place_troops(p);
         }
 
         if (!troops_to_place[PLAYER]) {
@@ -911,11 +1346,11 @@ void handle_game(void)
         } else if (attacking_region == focused_region) {
             REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
             attacking_region = NULL_REGION;
-            if (attacked_region) {
-                REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
-                attacked_region = NULL_REGION;
+            if (defending_region) {
+                REFRESH_INCLUDE_REGION_TROOPS(defending_region);
+                defending_region = NULL_REGION;
             }
-        } else if (!attacked_region) {
+        } else if (!defending_region) {
             if (regions[focused_region].taken_by == PLAYER) {
                 invalid_move("You can only attack enemy-controlled regions");
                 goto post_logic;
@@ -936,11 +1371,11 @@ void handle_game(void)
                 goto post_logic;
             }
 
-            attacked_region = focused_region;
-            REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
-        } else if (attacked_region == focused_region) {
-            REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
-            attacked_region = NULL_REGION;
+            defending_region = focused_region;
+            REFRESH_INCLUDE_REGION_TROOPS(defending_region);
+        } else if (defending_region == focused_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(defending_region);
+            defending_region = NULL_REGION;
         } else {
             invalid_move("Battles only involve two regions");
             goto post_logic;
@@ -950,7 +1385,7 @@ void handle_game(void)
         if (!attacking_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Choose region to attack from", 0);
-        } else if (!attacked_region) {
+        } else if (!defending_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Choose enemy-controlled region to attack", 0);
         } else {
@@ -968,9 +1403,9 @@ void handle_game(void)
     if (game_phase == MAIN && main_phase[PLAYER] == MAIN_BATTLE &&
         integer_prompt_done == ATTACK_TROOPS_COUNT)
     {
-        assert(attacking_region && attacked_region);
+        assert(attacking_region && defending_region);
 
-        int attacking_count = integer_prompt_value;
+        attacking_count = integer_prompt_value;
         integer_prompt_done = NO_PROMPT;
 
         if (attacking_count < 1 || attacking_count > 3) {
@@ -982,20 +1417,19 @@ void handle_game(void)
             attacking_count = 0;
         }
 
-        int defending_count = 0;
+        defending_count = 0;
         if (attacking_count) {
-            defending_count = ai_choose_defense_count(attacked_region,
-                                                      attacking_region,
-                                                      attacking_count);
+            defending_count = ai_choose_defense_count();
         }
 
         REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
-        REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
+        REFRESH_INCLUDE_REGION_TROOPS(defending_region);
 
-        if (attacking_count &&
-            battle(attacking_region, attacked_region,
-                   attacking_count, defending_count))
-        {
+        if (attacking_count && battle()) {
+            if (game_phase == GAME_OVER) {
+                goto post_logic;
+            }
+
             clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Choose how many armies you want to move to the "
@@ -1005,7 +1439,7 @@ void handle_game(void)
 
             integer_prompt = CLAIM_TROOPS_COUNT;
         } else {
-            attacking_region = attacked_region = NULL_REGION;
+            attacking_region = defending_region = NULL_REGION;
 
             // I cannot be lazy and use switch_main_phase(PLAYER, MAIN_BATTLE)
             // here because that would clear the whole side bar, but the dice
@@ -1029,7 +1463,7 @@ void handle_game(void)
     if (game_phase == MAIN && main_phase[PLAYER] == MAIN_BATTLE &&
         integer_prompt_done == CLAIM_TROOPS_COUNT)
     {
-        assert(attacking_region && attacked_region);
+        assert(attacking_region && defending_region);
 
         int moving_troops = integer_prompt_value;
         integer_prompt_done = NO_PROMPT;
@@ -1045,11 +1479,11 @@ void handle_game(void)
         }
 
         regions[attacking_region].troops -= moving_troops;
-        regions[attacked_region].troops += moving_troops;
+        regions[defending_region].troops += moving_troops;
 
         REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
-        REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
-        attacking_region = attacked_region = NULL_REGION;
+        REFRESH_INCLUDE_REGION_TROOPS(defending_region);
+        attacking_region = defending_region = NULL_REGION;
 
         // I'm lazy
         switch_main_phase(PLAYER, MAIN_BATTLE);
@@ -1065,9 +1499,9 @@ void handle_game(void)
             REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
             attacking_region = NULL_REGION;
         }
-        if (attacked_region) {
-            REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
-            attacked_region = NULL_REGION;
+        if (defending_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(defending_region);
+            defending_region = NULL_REGION;
         }
         switch_main_phase(PLAYER, MAIN_MOVEMENT);
         goto post_logic;
@@ -1187,6 +1621,23 @@ void handle_game(void)
         }
         switch_main_phase(PLAYER, MAIN_WAITING_FOR_OTHER);
         goto post_logic;
+    }
+
+    if (game_phase == MAIN) {
+        static uint64_t next_ai_move;
+        uint64_t now = platform_funcs.elapsed_us();
+
+        if (now >= next_ai_move) {
+            for (Party p = 0; p < PARTY_COUNT; p++) {
+                if (p != PLAYER && main_phase[p] != MAIN_WAITING_FOR_OTHER) {
+                    ai_move(p);
+                    REFRESH_INCLUDE(0, 0, fbw, fbh);
+                    break;
+                }
+            }
+
+            next_ai_move = now + 2000000;
+        }
     }
 
 post_logic:

@@ -218,6 +218,7 @@ void init_incbinfs(void)
     REF("/attacking-region.png", attacking_region_png);
     REF("/bg.png", bg_png);
     REF("/cursor.png", cursor_png);
+    REF("/defeat.png", defeat_png);
     REF("/destination-region.png", destination_region_png);
     REF("/die-1.png", die_1_png);
     REF("/die-2.png", die_2_png);
@@ -232,4 +233,5 @@ void init_incbinfs(void)
     REF("/music.ogg", music_ogg);
     REF("/origin-region.png", origin_region_png);
     REF("/region-areas.png", region_areas_png);
+    REF("/victory.png", victory_png);
 }
