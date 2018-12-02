@@ -71,6 +71,7 @@ static RegionID ai_focused_region, focused_region;
 static RegionID attacking_region, defending_region;
 static RegionID origin_region, destination_region;
 static int attacking_count, defending_count;
+static bool ai_waiting_for_defending_count;
 
 static LoadedImage region_focus_img, attacking_region_img, attacked_region_img;
 static LoadedImage origin_region_img, destination_region_img, error_icon;
@@ -102,6 +103,7 @@ enum IntegerPromptPurpose {
     ATTACK_TROOPS_COUNT,
     CLAIM_TROOPS_COUNT,
     MOVE_TROOPS_COUNT,
+    DEFENSE_TROOPS_COUNT,
 };
 
 static enum IntegerPromptPurpose integer_prompt;
@@ -493,9 +495,9 @@ static void switch_main_phase(Party p, MainPhase new_phase)
 
             if (p == PLAYER) {
                 char buf[64];
-                snprintf(buf, sizeof(buf), "You have %i troop%s remaining.",
+                snprintf(buf, sizeof(buf), "You have %i %s remaining.",
                          troops_to_place[p],
-                         troops_to_place[p] == 1 ? "" : "s");
+                         troops_to_place[p] == 1 ? "army" : "armies");
 
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
@@ -899,6 +901,12 @@ static void ai_move(Party p)
             regions[ai_focused_region].troops++;
             troops_to_place[p]--;
         } else if (main_phase[p] == MAIN_BATTLE) {
+            // Wait until this is set
+            if (!defending_count) {
+                tictoc = true;
+                return;
+            }
+
             if (battle()) {
                 if (game_phase == GAME_OVER) {
                     return;
@@ -1053,8 +1061,12 @@ static void ai_move(Party p)
         assert(regions[attacking_region].taken_by == p);
         assert(regions[defending_region].taken_by != p);
 
-        // FIXME
-        defending_count = ai_choose_defense_count();
+        if (regions[defending_region].taken_by == PLAYER) {
+            defending_count = 0; // to be chosen by the user
+            ai_waiting_for_defending_count = true;
+        } else {
+            defending_count = ai_choose_defense_count();
+        }
     } else if (main_phase[p] == MAIN_MOVEMENT) {
         if (!movement_started) {
             tictoc = false;
@@ -1204,7 +1216,7 @@ void handle_game(void)
         }
 
         if (key_pressed >= KEY_1 && key_pressed <= KEY_0 &&
-            integer_prompt_value < 65536)
+            integer_prompt_value < 100)
         {
             int num = key_pressed == KEY_0 ? 0 : key_pressed - KEY_1 + 1;
             integer_prompt_value = (integer_prompt_value * 10) + num;
@@ -1294,9 +1306,9 @@ void handle_game(void)
 
         if (unclaimed <= PARTY_COUNT) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "You have %i troop%s remaining.",
+            snprintf(buf, sizeof(buf), "You have %i %s remaining.",
                      troops_to_place[PLAYER],
-                     troops_to_place[PLAYER] == 1 ? "" : "s");
+                     troops_to_place[PLAYER] == 1 ? "army" : "armies");
             clear_to_bg(STATUS_X, STATUS_INFO_Y, fbw - STATUS_X, STATUS_INFO_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
                            buf, 0);
@@ -1411,6 +1423,9 @@ void handle_game(void)
         if (attacking_count < 1 || attacking_count > 3) {
             invalid_move("Invalid number of attacking armies");
             attacking_count = 0;
+        } else if (regions[attacking_region].troops < attacking_count) {
+            invalid_move("Not enough armies in the attacking region");
+            attacking_count = 0;
         } else if (regions[attacking_region].troops < attacking_count + 1) {
             invalid_move("Cannot attack with this many armies (at least one "
                          "must be left behind)");
@@ -1430,14 +1445,21 @@ void handle_game(void)
                 goto post_logic;
             }
 
-            clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose how many armies you want to move to the "
-                           "conquered region", 0);
-            platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
-                                    STATUS_TODO_H);
+            if (regions[attacking_region].troops == 1) {
+                // No human intervention required
+                integer_prompt_done = CLAIM_TROOPS_COUNT;
+                integer_prompt_value = 0;
+            } else {
+                clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                            STATUS_TODO_H);
+                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                               "Choose how many armies you want to move to the "
+                               "conquered region", 0);
+                platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                                        STATUS_TODO_H);
 
-            integer_prompt = CLAIM_TROOPS_COUNT;
+                integer_prompt = CLAIM_TROOPS_COUNT;
+            }
         } else {
             attacking_region = defending_region = NULL_REGION;
 
@@ -1505,6 +1527,49 @@ void handle_game(void)
         }
         switch_main_phase(PLAYER, MAIN_MOVEMENT);
         goto post_logic;
+    }
+
+    if (game_phase == MAIN && ai_waiting_for_defending_count) {
+        assert(regions[defending_region].taken_by == PLAYER);
+
+        if (regions[defending_region].troops == 1) {
+            // No need for human intervention
+            defending_count = 1;
+            ai_waiting_for_defending_count = false;
+        } else if (!integer_prompt && !integer_prompt_done) {
+            clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                           "Choose how many armies you want to defend with "
+                           "(1 or 2)", 0);
+            platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                                    STATUS_TODO_Y);
+
+            integer_prompt = DEFENSE_TROOPS_COUNT;
+        } else if (integer_prompt_done) {
+            assert(integer_prompt_done == DEFENSE_TROOPS_COUNT);
+            integer_prompt_done = NO_PROMPT;
+
+            defending_count = integer_prompt_value;
+
+            if (defending_count < 1 || defending_count > 2) {
+                invalid_move("Invalid number of defending armies");
+                integer_prompt = DEFENSE_TROOPS_COUNT;
+                defending_count = 0;
+            } else if (regions[defending_region].troops < defending_count) {
+                invalid_move("Not enough armies in the defending region");
+                integer_prompt = DEFENSE_TROOPS_COUNT;
+                defending_count = 0;
+            }
+
+            if (defending_count) {
+                clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                            STATUS_TODO_H);
+                platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                                        STATUS_TODO_Y);
+
+                ai_waiting_for_defending_count = false;
+            }
+        }
     }
 
     if (game_phase == MAIN && main_phase[PLAYER] == MAIN_MOVEMENT &&
