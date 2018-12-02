@@ -27,6 +27,7 @@ typedef enum MainPhase {
     MAIN_WAITING_FOR_OTHER,
     MAIN_REINFORCEMENT,
     MAIN_BATTLE,
+    MAIN_MOVEMENT,
 } MainPhase;
 
 
@@ -65,9 +66,10 @@ static uint32_t *army_img[PARTY_COUNT][100];
 
 static RegionID focused_region;
 static RegionID attacking_region, attacked_region;
+static RegionID origin_region, destination_region;
 
 static LoadedImage region_focus_img, attacking_region_img, attacked_region_img;
-static LoadedImage error_icon;
+static LoadedImage origin_region_img, destination_region_img, error_icon;
 static int region_troops_max_w, region_troops_max_h;
 
 static int dice_w, dice_h;
@@ -95,6 +97,7 @@ enum IntegerPromptPurpose {
     NO_PROMPT,
     ATTACK_TROOPS_COUNT,
     CLAIM_TROOPS_COUNT,
+    MOVE_TROOPS_COUNT,
 };
 
 static enum IntegerPromptPurpose integer_prompt;
@@ -211,6 +214,24 @@ void init_game(void)
     region_troops_max_w = MAX(region_troops_max_w, attacked_region_img.w);
     region_troops_max_h = MAX(region_troops_max_h, attacked_region_img.h);
 
+    if (!load_image("/origin-region.png", &origin_region_img.d,
+                    &origin_region_img.w, &origin_region_img.h, 0))
+    {
+        puts("Failed to load origin-region.png");
+        abort();
+    }
+    region_troops_max_w = MAX(region_troops_max_w, origin_region_img.w);
+    region_troops_max_h = MAX(region_troops_max_h, origin_region_img.h);
+
+    if (!load_image("/destination-region.png", &destination_region_img.d,
+                    &destination_region_img.w, &destination_region_img.h, 0))
+    {
+        puts("Failed to load destination-region.png");
+        abort();
+    }
+    region_troops_max_w = MAX(region_troops_max_w, destination_region_img.w);
+    region_troops_max_h = MAX(region_troops_max_h, destination_region_img.h);
+
     for (int i = 0; i < 6; i++) {
         char fname[16];
         snprintf(fname, sizeof(fname), "/die-%i.png", i + 1);
@@ -320,6 +341,24 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
                      xmin, ymin, xmax, ymax);
         }
 
+        if (i == origin_region) {
+            ablitlmt(fb, origin_region_img.d,
+                     regions[i].troops_pos.x - origin_region_img.w / 2,
+                     regions[i].troops_pos.y - origin_region_img.h / 2,
+                     origin_region_img.w, origin_region_img.h,
+                     fb_stride, origin_region_img.w * sizeof(uint32_t),
+                     xmin, ymin, xmax, ymax);
+        }
+
+        if (i == destination_region) {
+            ablitlmt(fb, destination_region_img.d,
+                     regions[i].troops_pos.x - destination_region_img.w / 2,
+                     regions[i].troops_pos.y - destination_region_img.h / 2,
+                     destination_region_img.w, destination_region_img.h,
+                     fb_stride, destination_region_img.w * sizeof(uint32_t),
+                     xmin, ymin, xmax, ymax);
+        }
+
         if (i == focused_region) {
             ablitlmt(fb, region_focus_img.d,
                      regions[i].troops_pos.x - region_focus_img.w / 2,
@@ -374,6 +413,7 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                                0x404040);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
+            switch_main_phase((p + 1) % PARTY_COUNT, MAIN_REINFORCEMENT);
             break;
 
         case MAIN_REINFORCEMENT: {
@@ -422,6 +462,20 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
                                "Press the space bar to end the battle phase",
                                0);
+                platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
+            }
+            break;
+        }
+
+        case MAIN_MOVEMENT: {
+            if (p == PLAYER) {
+                clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
+                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
+                               STATUS_PHASE_Y, "Fortifying", 0x404040);
+                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                               "Choose one region to move troops from", 0);
+                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
+                               "Press the space bar to skip", 0);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
             break;
@@ -606,6 +660,37 @@ static bool battle(RegionID attacking, RegionID defending,
 }
 
 
+static bool do_friendly_connection(Party party, RegionID origin,
+                                   RegionID destination,
+                                   bool region_seen[REGION_COUNT])
+{
+    if (origin == destination) {
+        return true;
+    }
+    if (region_seen[origin] || regions[origin].taken_by != party) {
+        return false;
+    }
+    region_seen[origin] = true;
+
+    for (int i = 0; i < regions[origin].neighbor_count; i++) {
+        if (do_friendly_connection(party, regions[origin].neighbors[i],
+                                   destination, region_seen))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool friendly_connection(RegionID origin, RegionID destination)
+{
+    Party party = regions[origin].taken_by;
+    bool region_seen[REGION_COUNT] = { false };
+
+    return do_friendly_connection(party, origin, destination, region_seen);
+}
+
+
 #define REFRESH_INCLUDE(xmin, ymin, xmax, ymax) \
     do { \
         refresh_xmin = MIN(refresh_xmin, xmin); \
@@ -635,11 +720,12 @@ void handle_game(void)
         switch_game_phase(PREPARATION);
     }
 
-    int key = -1, button = -1;
+    int key = -1, button = -1, key_pressed = -1;
     bool has_button, key_up, button_up;
     bool lbuttondown = false;
 
     if (platform_funcs.get_keyboard_event(&key, &key_up) && !key_up) {
+        key_pressed = key;
         clear_invalid_move();
     }
 
@@ -680,10 +766,10 @@ void handle_game(void)
             integer_prompt_value = 0;
         }
 
-        if (key >= KEY_1 && key <= KEY_0 && !key_up &&
+        if (key_pressed >= KEY_1 && key_pressed <= KEY_0 &&
             integer_prompt_value < 65536)
         {
-            int num = key == KEY_0 ? 0 : key - KEY_1 + 1;
+            int num = key_pressed == KEY_0 ? 0 : key_pressed - KEY_1 + 1;
             integer_prompt_value = (integer_prompt_value * 10) + num;
             integer_prompt_chrs++;
             if (!integer_prompt_value) {
@@ -691,11 +777,11 @@ void handle_game(void)
                 integer_prompt_chrs = 1;
             }
             update = true;
-        } else if (key == KEY_BACKSPACE && !key_up && integer_prompt_chrs) {
+        } else if (key_pressed == KEY_BACKSPACE && integer_prompt_chrs) {
             integer_prompt_value /= 10;
             integer_prompt_chrs--;
             update = true;
-        } else if (key == KEY_ENTER && !key_up) {
+        } else if (key_pressed == KEY_ENTER) {
             integer_prompt_done = integer_prompt;
             integer_prompt = NO_PROMPT;
             integer_prompt_chrs = -1;
@@ -809,7 +895,7 @@ void handle_game(void)
     if (game_phase == MAIN && main_phase[PLAYER] == MAIN_BATTLE &&
         focused_region && lbuttondown)
     {
-        integer_prompt = false;
+        integer_prompt = NO_PROMPT;
 
         if (!attacking_region) {
             if (regions[focused_region].taken_by != PLAYER) {
@@ -889,21 +975,25 @@ void handle_game(void)
 
         if (attacking_count < 1 || attacking_count > 3) {
             invalid_move("Invalid number of attacking armies");
-            goto post_logic;
+            attacking_count = 0;
         } else if (regions[attacking_region].troops < attacking_count + 1) {
             invalid_move("Cannot attack with this many armies (at least one "
                          "must be left behind)");
-            goto post_logic;
+            attacking_count = 0;
         }
 
-        int defending_count = ai_choose_defense_count(attacked_region,
+        int defending_count = 0;
+        if (attacking_count) {
+            defending_count = ai_choose_defense_count(attacked_region,
                                                       attacking_region,
                                                       attacking_count);
+        }
 
         REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
         REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
 
-        if (battle(attacking_region, attacked_region,
+        if (attacking_count &&
+            battle(attacking_region, attacked_region,
                    attacking_count, defending_count))
         {
             clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
@@ -946,9 +1036,11 @@ void handle_game(void)
 
         if (regions[attacking_region].troops < moving_troops) {
             invalid_move("Not enough armies in the attacking region");
+            integer_prompt = CLAIM_TROOPS_COUNT;
             goto post_logic;
         } else if (regions[attacking_region].troops == moving_troops) {
             invalid_move("At least one army has to stay behind");
+            integer_prompt = CLAIM_TROOPS_COUNT;
             goto post_logic;
         }
 
@@ -962,6 +1054,138 @@ void handle_game(void)
         // I'm lazy
         switch_main_phase(PLAYER, MAIN_BATTLE);
 
+        goto post_logic;
+    }
+
+    if (game_phase == MAIN && main_phase[PLAYER] == MAIN_BATTLE &&
+        key_pressed == KEY_SPACE)
+    {
+        integer_prompt = NO_PROMPT;
+        if (attacking_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(attacking_region);
+            attacking_region = NULL_REGION;
+        }
+        if (attacked_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(attacked_region);
+            attacked_region = NULL_REGION;
+        }
+        switch_main_phase(PLAYER, MAIN_MOVEMENT);
+        goto post_logic;
+    }
+
+    if (game_phase == MAIN && main_phase[PLAYER] == MAIN_MOVEMENT &&
+        focused_region && lbuttondown)
+    {
+        integer_prompt = NO_PROMPT;
+
+        if (!origin_region) {
+            if (regions[focused_region].taken_by != PLAYER) {
+                invalid_move("This region does not belong to you");
+                goto post_logic;
+            } else if (regions[focused_region].troops < 2) {
+                invalid_move("To move troops, you need at least two armies "
+                             "in the origin region");
+                goto post_logic;
+            }
+
+            origin_region = focused_region;
+            REFRESH_INCLUDE_REGION_TROOPS(origin_region);
+        } else if (origin_region == focused_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(origin_region);
+            origin_region = NULL_REGION;
+            if (destination_region) {
+                REFRESH_INCLUDE_REGION_TROOPS(destination_region);
+                destination_region = NULL_REGION;
+            }
+        } else if (!destination_region) {
+            if (regions[focused_region].taken_by != PLAYER) {
+                invalid_move("This region does not belong to you");
+                goto post_logic;
+            }
+            // No empty regions
+            assert(regions[focused_region].troops);
+
+            bool is_connected = friendly_connection(origin_region,
+                                                    focused_region);
+            if (!is_connected) {
+                invalid_move("You cannot move troops through enemy regions");
+                goto post_logic;
+            }
+
+            destination_region = focused_region;
+            REFRESH_INCLUDE_REGION_TROOPS(destination_region);
+        } else if (destination_region == focused_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(destination_region);
+            destination_region = NULL_REGION;
+        } else {
+            invalid_move("Movement is allowed only between two regions");
+            goto post_logic;
+        }
+
+        clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
+        if (!origin_region) {
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                           "Choose one region to move troops from", 0);
+        } else if (!destination_region) {
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                           "Choose one region to move troops to", 0);
+        } else {
+            // Should have been caught by the conditions above
+            assert(destination_region != origin_region);
+
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                           "Choose how many armies you want to move", 0);
+            integer_prompt = MOVE_TROOPS_COUNT;
+        }
+        platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                                STATUS_TODO_H);
+
+        goto post_logic;
+    }
+
+    if (game_phase == MAIN && main_phase[PLAYER] == MAIN_MOVEMENT &&
+        integer_prompt_done == MOVE_TROOPS_COUNT)
+    {
+        assert(origin_region && destination_region);
+
+        int moving_troops = integer_prompt_value;
+        integer_prompt_done = NO_PROMPT;
+
+        if (regions[origin_region].troops < moving_troops) {
+            invalid_move("Not enough armies in the origin region");
+            integer_prompt = MOVE_TROOPS_COUNT;
+            goto post_logic;
+        } else if (regions[origin_region].troops == moving_troops) {
+            invalid_move("At least one army has to stay behind");
+            integer_prompt = MOVE_TROOPS_COUNT;
+            goto post_logic;
+        }
+
+        regions[origin_region].troops -= moving_troops;
+        regions[destination_region].troops += moving_troops;
+
+        REFRESH_INCLUDE_REGION_TROOPS(origin_region);
+        REFRESH_INCLUDE_REGION_TROOPS(destination_region);
+        origin_region = destination_region = NULL_REGION;
+
+        switch_main_phase(PLAYER, MAIN_WAITING_FOR_OTHER);
+
+        goto post_logic;
+    }
+
+    if (game_phase == MAIN && main_phase[PLAYER] == MAIN_MOVEMENT &&
+        key_pressed == KEY_SPACE)
+    {
+        integer_prompt = NO_PROMPT;
+        if (origin_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(origin_region);
+            origin_region = NULL_REGION;
+        }
+        if (destination_region) {
+            REFRESH_INCLUDE_REGION_TROOPS(destination_region);
+            destination_region = NULL_REGION;
+        }
+        switch_main_phase(PLAYER, MAIN_WAITING_FOR_OTHER);
         goto post_logic;
     }
 
