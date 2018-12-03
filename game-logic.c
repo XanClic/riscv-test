@@ -24,9 +24,6 @@ const char *const party_name[PARTY_COUNT] = {
 typedef enum GamePhase {
     INITIALIZATION,
     PREPARATION,
-#ifdef HAVE_NEUTRAL
-    NEUTRAL_PLACEMENT,
-#endif
     MAIN,
     GAME_OVER,
 
@@ -47,10 +44,10 @@ typedef enum MainPhase {
 #define STATUS_PHASE_Y   10
 #define STATUS_PHASE_H   40
 #define STATUS_TODO_Y    60
-#define STATUS_TODO_H    40
-#define STATUS_INFO_Y   100
+#define STATUS_TODO_H    60
+#define STATUS_INFO_Y   120
 #define STATUS_INFO_H    40
-#define STATUS_PROMPT_Y 140
+#define STATUS_PROMPT_Y 160
 #define STATUS_PROMPT_H  40
 #define STATUS_ERROR_Y  800
 #define STATUS_ERROR_H   80
@@ -96,6 +93,10 @@ static uint32_t *dice_img[6];
 
 static GamePhase game_phase = INITIALIZATION;
 static MainPhase main_phase[PARTY_COUNT];
+
+// For HAVE_NEUTRAL: Every party places two of their own armies,
+// (indices 0, 1), then a neutral army (index 2)
+static int preparation_placement_index;
 
 static int troops_to_place[PARTY_COUNT];
 
@@ -285,9 +286,6 @@ void init_game(void)
         puts("Failed to load preparation.png");
         abort();
     }
-#ifdef HAVE_NEUTRAL
-    game_phase_headings[NEUTRAL_PLACEMENT] = game_phase_headings[PREPARATION];
-#endif
 
     if (!load_image("/game-over.png", &game_phase_headings[GAME_OVER],
                     &headings_w, &headings_h, 0))
@@ -719,8 +717,8 @@ static void switch_game_phase(GamePhase new_phase)
 
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
 #ifdef HAVE_NEUTRAL
-                           "Reinforce your regions by placing additional "
-                           "troops",
+                           "Reinforce your regions by placing two additional "
+                           "armies per turn.",
 #else
                            "Claim regions by placing troops in them.",
 #endif
@@ -739,31 +737,6 @@ static void switch_game_phase(GamePhase new_phase)
 
             break;
         }
-
-#ifdef HAVE_NEUTRAL
-        case NEUTRAL_PLACEMENT: {
-            clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
-
-            ablitlmt(fb, game_phase_headings[new_phase], STATUS_X,
-                     STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
-                     headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
-                     fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
-
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Take turns in reinforcing the neutral troops", 0);
-
-            char buf[64];
-            snprintf(buf, sizeof(buf), "There are %i neutral %s remaining.",
-                     troops_to_place[NEUTRAL],
-                     troops_to_place[NEUTRAL] == 1 ? "army" : "armies");
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
-                           buf, 0);
-
-            platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
-
-            break;
-        }
-#endif
 
         case MAIN: {
             for (Party p = 0; p < PARTY_COUNT; p++) {
@@ -1012,7 +985,7 @@ static bool get_ai_battle_params(Party p, RegionID *attacking,
                 score += 5;
             }
 
-            score -= rand() % 2;
+            score -= rand() % 4;
 
             if (score > best_score) {
                 best_score = score;
@@ -1028,7 +1001,7 @@ static bool get_ai_battle_params(Party p, RegionID *attacking,
         }
     }
 
-    if (best_score <= -(rand() % 5)) {
+    if (best_score <= -(rand() % 4)) {
         *attacking = NULL_REGION;
         *attacked = NULL_REGION;
         *attack_count = 0;
@@ -1218,11 +1191,13 @@ static void ai_move(Party p)
                 continue;
             }
 
+            bool no_enemy_neighbors = true;
             for (int i = 0; i < regions[r].neighbor_count; i++) {
                 RegionID n = regions[r].neighbors[i];
                 if (regions[n].taken_by == p) {
                     continue;
                 }
+                no_enemy_neighbors = false;
 
                 int diff = regions[r].troops - regions[n].troops;
                 if (diff < -troops_to_place[p]) {
@@ -1233,6 +1208,10 @@ static void ai_move(Party p)
                 } else {
                     region_scores[r] += 1;
                 }
+            }
+
+            if (no_enemy_neighbors) {
+                region_scores[r] -= 100;
             }
         }
 
@@ -1355,13 +1334,6 @@ static void ai_place_neutral_troops(Party p)
 
 static void ai_place_troops(Party p)
 {
-#ifdef HAVE_NEUTRAL
-    if (game_phase == NEUTRAL_PLACEMENT) {
-        ai_place_neutral_troops(p);
-        return;
-    }
-#endif
-
     if (!troops_to_place[p]) {
         return;
     }
@@ -1501,15 +1473,17 @@ void handle_game(void)
     }
 
     if ((game_phase == PREPARATION ||
-#ifdef HAVE_NEUTRAL
-        game_phase == NEUTRAL_PLACEMENT ||
-#endif
         (game_phase == MAIN && main_phase[PLAYER] == MAIN_REINFORCEMENT)) &&
         focused_region && lbuttondown)
     {
         Party p;
+
+        if (game_phase != PREPARATION) {
+            preparation_placement_index = 0;
+        }
+
 #ifdef HAVE_NEUTRAL
-        if (game_phase == NEUTRAL_PLACEMENT) {
+        if (preparation_placement_index == 2) {
             p = NEUTRAL;
         } else {
             p = PLAYER;
@@ -1550,16 +1524,6 @@ void handle_game(void)
         } else {
             regions[focused_region].taken_by = p;
             regions[focused_region].troops = 1;
-
-            if (unclaimed <= PARTY_COUNT) {
-                clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
-                            STATUS_TODO_H);
-                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                               "Reinforce your regions by placing additional "
-                               "troops.", 0);
-                platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
-                                        STATUS_TODO_H);
-            }
         }
 
         // I'm so lazy
@@ -1567,50 +1531,74 @@ void handle_game(void)
 
         troops_to_place[p]--;
 
+#ifdef HAVE_NEUTRAL
+        if (game_phase == PREPARATION) {
+            preparation_placement_index = (preparation_placement_index + 1) % 3;
+        }
+#endif
+
         if (unclaimed <= PARTY_COUNT) {
+            clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                        STATUS_INFO_Y + STATUS_INFO_H - STATUS_TODO_Y);
+
+            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                           preparation_placement_index == 2
+                           ? "Reinforce the neutral troops with one army."
+                           : "Reinforce your regions by placing two additional "
+                             "armies per turn.",
+                           0);
+
+#ifdef HAVE_NEUTRAL
+            p = preparation_placement_index == 2 ? NEUTRAL : PLAYER;
+#endif
+
             char buf[64];
-            snprintf(buf, sizeof(buf),
-                     p == PLAYER ? "You have %i %s remaining."
-                                 : "There are %i neutral %s remaining.",
-                     troops_to_place[p],
-                     troops_to_place[p] == 1 ? "army" : "armies");
-            clear_to_bg(STATUS_X, STATUS_INFO_Y, fbw - STATUS_X, STATUS_INFO_H);
+            if (p == PLAYER) {
+                snprintf(buf, sizeof(buf),
+                         "You have %i %s remaining.",
+                         troops_to_place[p],
+                         troops_to_place[p] == 1 ? "army" : "armies");
+            } else {
+                snprintf(buf, sizeof(buf),
+                         "There %s %i neutral %s remaining.",
+                         troops_to_place[p] == 1 ? "is" : "are",
+                         troops_to_place[p],
+                         troops_to_place[p] == 1 ? "army" : "armies");
+            }
+
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
                            buf, 0);
-            platform_funcs.fb_flush(STATUS_X, STATUS_INFO_Y, fbw - STATUS_X,
-                                    STATUS_INFO_H);
+            platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
+                                    STATUS_INFO_Y + STATUS_INFO_H -
+                                    STATUS_TODO_Y);
         }
 
 
-        for (Party aip = 0; aip < PARTY_COUNT; aip++) {
-            if (aip == PLAYER || aip == NEUTRAL) {
-                continue;
-            }
-            ai_place_troops(aip);
-        }
-
-        if (!troops_to_place[p]) {
-            if (p == PLAYER) {
-                for (Party op = 0; op < PARTY_COUNT; op++) {
-#ifdef HAVE_NEUTRAL
-                    if (op == NEUTRAL) {
-                        continue;
-                    }
-#endif
-                    assert(!troops_to_place[op]);
+        if (preparation_placement_index == 0) {
+            for (Party aip = 0; aip < PARTY_COUNT; aip++) {
+                if (aip == PLAYER || aip == NEUTRAL) {
+                    continue;
                 }
+                ai_place_troops(aip);
+#ifdef HAVE_NEUTRAL
+                ai_place_troops(aip);
+                ai_place_neutral_troops(aip);
+#endif
+            }
+        }
+
+        if (!troops_to_place[PLAYER]
+#ifdef HAVE_NEUTRAL
+            && !troops_to_place[NEUTRAL]
+#endif
+           )
+        {
+            for (Party op = 0; op < PARTY_COUNT; op++) {
+                assert(!troops_to_place[op]);
             }
 
             if (game_phase == PREPARATION) {
-#ifdef HAVE_NEUTRAL
-                switch_game_phase(NEUTRAL_PLACEMENT);
-#else
                 switch_game_phase(MAIN);
-#endif
-#ifdef HAVE_NEUTRAL
-            } else if (game_phase == NEUTRAL_PLACEMENT) {
-                switch_game_phase(MAIN);
-#endif
             } else {
                 switch_main_phase(PLAYER, MAIN_BATTLE);
             }
