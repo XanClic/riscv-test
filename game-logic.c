@@ -401,7 +401,7 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
     }
 
     for (RegionID i = 1; i < REGION_COUNT; i++) {
-        ablitlmt(fb, army_img[regions[i].taken_by][regions[i].troops],
+        ablitlmt(fb, army_img[regions[i].taken_by][MIN(regions[i].troops, 99)],
                  regions[i].troops_pos.x - army_img_w / 2,
                  regions[i].troops_pos.y - army_img_h / 2,
                  army_img_w, army_img_h, fb_stride,
