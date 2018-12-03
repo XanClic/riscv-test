@@ -29,6 +29,8 @@ typedef enum GamePhase {
 #endif
     MAIN,
     GAME_OVER,
+
+    GAME_PHASE_COUNT
 } GamePhase;
 
 typedef enum MainPhase {
@@ -36,11 +38,13 @@ typedef enum MainPhase {
     MAIN_REINFORCEMENT,
     MAIN_BATTLE,
     MAIN_MOVEMENT,
+
+    MAIN_PHASE_COUNT
 } MainPhase;
 
 
 #define STATUS_X 1320
-#define STATUS_PHASE_Y   20
+#define STATUS_PHASE_Y   10
 #define STATUS_PHASE_H   40
 #define STATUS_TODO_Y    60
 #define STATUS_TODO_H    40
@@ -82,6 +86,10 @@ static bool ai_waiting_for_defending_count;
 static LoadedImage region_focus_img, attacking_region_img, attacked_region_img;
 static LoadedImage origin_region_img, destination_region_img, error_icon;
 static int region_troops_max_w, region_troops_max_h;
+
+static int headings_w, headings_h = STATUS_PHASE_H;
+static uint32_t *game_phase_headings[GAME_PHASE_COUNT];
+static uint32_t *main_phase_headings[GAME_PHASE_COUNT];
 
 static int dice_w, dice_h;
 static uint32_t *dice_img[6];
@@ -266,6 +274,55 @@ void init_game(void)
 
     if (!load_image("/victory.png", &victory_img, &fbw, &fbh, 0)) {
         puts("Failed to load victory.png");
+        abort();
+    }
+
+    headings_w = fbw - STATUS_X;
+
+    if (!load_image("/preparation.png", &game_phase_headings[PREPARATION],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load preparation.png");
+        abort();
+    }
+#ifdef HAVE_NEUTRAL
+    game_phase_headings[NEUTRAL_PLACEMENT] = game_phase_headings[PREPARATION];
+#endif
+
+    if (!load_image("/game-over.png", &game_phase_headings[GAME_OVER],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load game-over.png");
+        abort();
+    }
+
+    if (!load_image("/waiting-for-other.png",
+                    &main_phase_headings[MAIN_WAITING_FOR_OTHER],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load waiting-for-other.png");
+        abort();
+    }
+
+    if (!load_image("/reinforcements.png",
+                    &main_phase_headings[MAIN_REINFORCEMENT],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load reinforcements.png");
+        abort();
+    }
+
+    if (!load_image("/battle.png", &main_phase_headings[MAIN_BATTLE],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load battle.png");
+        abort();
+    }
+
+    if (!load_image("/movement.png", &main_phase_headings[MAIN_MOVEMENT],
+                    &headings_w, &headings_h, 0))
+    {
+        puts("Failed to load movement.png");
         abort();
     }
 }
@@ -463,9 +520,10 @@ static void switch_main_phase(Party p, MainPhase new_phase)
         case MAIN_WAITING_FOR_OTHER: {
             if (p == PLAYER) {
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
-                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
-                               STATUS_PHASE_Y, "Waiting for other players...",
-                               0x404040);
+                ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
+                         STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                         headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                         fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
 
@@ -518,8 +576,10 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                          troops_to_place[p] == 1 ? "army" : "armies");
 
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
-                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
-                               STATUS_PHASE_Y, "Reinforcements", 0x404040);
+                ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
+                         STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                         headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                         fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                                "Reinforce your regions by placing troops.", 0);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
@@ -532,8 +592,10 @@ static void switch_main_phase(Party p, MainPhase new_phase)
         case MAIN_BATTLE: {
             if (p == PLAYER) {
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
-                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
-                               STATUS_PHASE_Y, "Battle", 0x404040);
+                ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
+                         STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                         headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                         fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                                "Choose region to attack from", 0);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
@@ -547,8 +609,10 @@ static void switch_main_phase(Party p, MainPhase new_phase)
         case MAIN_MOVEMENT: {
             if (p == PLAYER) {
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
-                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
-                               STATUS_PHASE_Y, "Fortifying", 0x404040);
+                ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
+                         STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                         headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                         fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                                "Choose one region to move troops from", 0);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
@@ -648,8 +712,10 @@ static void switch_game_phase(GamePhase new_phase)
 
             clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
 
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_PHASE_Y,
-                           "Preparation phase", 0x404040);
+            ablitlmt(fb, game_phase_headings[new_phase], STATUS_X,
+                     STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                     headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                     fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
 
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
 #ifdef HAVE_NEUTRAL
@@ -678,8 +744,10 @@ static void switch_game_phase(GamePhase new_phase)
         case NEUTRAL_PLACEMENT: {
             clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
 
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_PHASE_Y,
-                           "Placement of neutral troops", 0x404040);
+            ablitlmt(fb, game_phase_headings[new_phase], STATUS_X,
+                     STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                     headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                     fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
 
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Take turns in reinforcing the neutral troops", 0);
@@ -716,8 +784,10 @@ static void switch_game_phase(GamePhase new_phase)
 
             clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
 
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_PHASE_Y,
-                           "Game over", 0x404040);
+            ablitlmt(fb, game_phase_headings[new_phase], STATUS_X,
+                     STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                     headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                     fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
 
             if (party_defeated[PLAYER]) {
                 ablitlmt(fb, defeat_img, 0, 0, fbw, fbh, fb_stride,
@@ -1678,8 +1748,10 @@ void handle_game(void)
             // should stay visible
             clear_to_bg(STATUS_X, 0, fbw - STATUS_X,
                         STATUS_INFO_Y + STATUS_INFO_H);
-            font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
-                           STATUS_PHASE_Y, "Battle", 0x404040);
+            ablitlmt(fb, main_phase_headings[MAIN_BATTLE], STATUS_X,
+                     STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                     headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                     fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Choose region to attack from", 0);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
