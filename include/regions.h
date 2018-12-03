@@ -1,14 +1,23 @@
 #ifndef _REGIONS_H
 #define _REGIONS_H
 
+#define HAVE_NEUTRAL
+
 typedef enum Party {
     RED,
     BLUE,
+#ifdef HAVE_NEUTRAL
+    GRAY,
+#endif
 
     PARTY_COUNT
 } Party;
 
 #define PLAYER RED
+
+#ifdef HAVE_NEUTRAL
+#define NEUTRAL GRAY
+#endif
 
 typedef enum ContinentID {
     NULL_CONTINENT,
