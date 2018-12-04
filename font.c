@@ -133,7 +133,7 @@ static const char *next_bsp(const char *text, int width)
         }
     }
 
-    return *text ? last_space : NULL;
+    return width < 0 ? last_space : NULL;
 }
 
 

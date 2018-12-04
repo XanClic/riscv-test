@@ -1,10 +1,7 @@
-#include <ivorbisfile.h>
-#include <limits.h>
 #include <music.h>
+#include <ogg-vorbis.h>
 #include <platform.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
 
 
 static uint64_t track_resume_at = -1;
@@ -17,47 +14,10 @@ static void track_complete(void);
 
 void init_music(void)
 {
-    FILE *fp = fopen("/music.ogg", "rb");
-    if (!fp) {
-        puts("[music] Failed to find /music.ogg");
+    if (!load_ogg_vorbis("/music.ogg", &music_samples, &music_frame_count,
+                         &frame_rate, &channels))
+    {
         return;
-    }
-
-    OggVorbis_File ovf;
-    if (ov_open(fp, &ovf, NULL, 0) < 0) {
-        puts("[music] Failed to load /music.ogg");
-        fclose(fp);
-        return;
-    }
-
-    music_frame_count = ov_pcm_total(&ovf, -1);
-    if (music_frame_count < 0) {
-        puts("[music] Stream is unseekable");
-        return;
-    } else if (music_frame_count > INT_MAX / 2) {
-        puts("[music] Music track is too long");
-        return;
-    }
-
-    vorbis_info *vi = ov_info(&ovf, -1);
-    frame_rate = vi->rate;
-    channels = vi->channels;
-
-    music_samples = malloc(music_frame_count * channels * sizeof(int16_t));
-
-    int remaining = music_frame_count * channels * 2;
-    char *target = (char *)music_samples;
-    int bitstream = 0;
-    while (remaining) {
-        int read = ov_read(&ovf, target, remaining, &bitstream);
-
-        if (read <= 0) {
-            music_frame_count -= remaining / (channels * 2);
-            break;
-        }
-
-        remaining -= read;
-        target += read;
     }
 
     platform_funcs.queue_audio_track(music_samples, music_frame_count,

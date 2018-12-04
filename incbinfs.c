@@ -315,8 +315,12 @@ void init_incbinfs(void)
     REF("/army-red-99.png", army_red_99_png);
     REF("/attacked-region.png", attacked_region_png);
     REF("/attacking-region.png", attacking_region_png);
+    REF("/battle.ogg", battle_ogg);
     REF("/battle.png", battle_png);
+    REF("/beep1.ogg", beep1_ogg);
+    REF("/beep2.ogg", beep2_ogg);
     REF("/bg.png", bg_png);
+    REF("/capture.ogg", capture_ogg);
     REF("/cursor.png", cursor_png);
     REF("/defeat.png", defeat_png);
     REF("/destination-region.png", destination_region_png);
@@ -331,12 +335,17 @@ void init_incbinfs(void)
     REF("/font.npf", font_npf);
     REF("/game-over.png", game_over_png);
     REF("/loading.png", loading_png);
+    REF("/movement.ogg", movement_ogg);
     REF("/movement.png", movement_png);
     REF("/music.ogg", music_ogg);
+    REF("/notification.ogg", notification_ogg);
     REF("/origin-region.png", origin_region_png);
     REF("/preparation.png", preparation_png);
     REF("/region-areas.png", region_areas_png);
+    REF("/reinforcements.ogg", reinforcements_ogg);
     REF("/reinforcements.png", reinforcements_png);
+    REF("/victory.ogg", victory_ogg);
     REF("/victory.png", victory_png);
+    REF("/waiting-for-other.png", waiting_for_other_png);
     REF("/waiting-for-other.png", waiting_for_other_png);
 }
