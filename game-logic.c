@@ -844,7 +844,7 @@ static int ai_choose_defense_count(void)
 
 static void check_win_condition(void)
 {
-    int parties_active = 0;
+    int opponents_active = 0;
 
     for (Party p = 0; p < PARTY_COUNT; p++) {
         if (party_defeated[p]) {
@@ -860,13 +860,20 @@ static void check_win_condition(void)
         }
 
         if (has_region) {
-            parties_active++;
+            if (p != PLAYER
+#ifdef HAVE_NEUTRAL
+                && p != NEUTRAL
+#endif
+               )
+            {
+                opponents_active++;
+            }
         } else {
             party_defeated[p] = true;
         }
     }
 
-    if (party_defeated[PLAYER] || parties_active == 1) {
+    if (party_defeated[PLAYER] || !opponents_active) {
         switch_game_phase(GAME_OVER);
     }
 }
