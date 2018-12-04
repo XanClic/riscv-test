@@ -127,7 +127,7 @@ struct Region regions[REGION_COUNT] = {
 
 
 int continent_bonuses[CONTINENT_COUNT] = {
-    [ERIADOR] = 2,
+    [ERIADOR] = 4,
     [ROHAN_RHOVANION] = 3,
     [GONDOR] = 2,
     [MORDOR] = 1,
