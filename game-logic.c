@@ -755,6 +755,16 @@ static void switch_game_phase(GamePhase new_phase)
                     regions[r].troops = 1;
                 }
             }
+
+            /* Now add neutral troops so every party gets the same
+             * number to place
+             * (This is not in standard risk, because it is not
+             * necessary there -- the number of regions and troops is
+             * chosen such that this is the case anyway.) */
+            if (troops_to_place[NEUTRAL] % (PARTY_COUNT - 1)) {
+                troops_to_place[NEUTRAL] += PARTY_COUNT - 1 -
+                    troops_to_place[NEUTRAL] % (PARTY_COUNT - 1);
+            }
 #endif
 
             clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
