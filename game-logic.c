@@ -1313,7 +1313,12 @@ static void ai_move(Party p)
         assert(regions[attacking_region].taken_by == p);
         assert(regions[defending_region].taken_by != p);
 
-        if (regions[defending_region].taken_by == PLAYER) {
+        if (regions[defending_region].taken_by == PLAYER
+#ifdef HAVE_NEUTRAL
+            || regions[defending_region].taken_by == NEUTRAL
+#endif
+           )
+        {
             defending_count = 0; // to be chosen by the user
             ai_waiting_for_defending_count = true;
         } else {
@@ -2000,7 +2005,13 @@ void handle_game(void)
     }
 
     if (game_phase == MAIN && ai_waiting_for_defending_count) {
-        assert(regions[defending_region].taken_by == PLAYER);
+        Party p = regions[defending_region].taken_by;
+
+#ifdef HAVE_NEUTRAL
+        assert(p == PLAYER || p == NEUTRAL);
+#else
+        assert(p == PLAYER);
+#endif
 
         if (regions[defending_region].troops == 1) {
             // No need for human intervention
@@ -2009,14 +2020,20 @@ void handle_game(void)
         } else if (!integer_prompt && !integer_prompt_done) {
             clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose how many armies you want to defend with "
-                           "(1 or 2)", 0);
+                           p == PLAYER ? "Choose how many armies you want to "
+                                         "defend with (1 or 2)"
+                                       : "Choose how many neutral armies "
+                                         "should be used for defense (1 or 2)",
+                           0);
             platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
                                     STATUS_TODO_Y);
 
             // Notify the player because they may have stopped paying
             // attention during their opponent's turn
-            important_message("Choose how many armies you want to defend with",
+            important_message(p == PLAYER ? "Choose how many armies you want "
+                                            "to defend with"
+                                          : "Choose how many neutral armies "
+                                            "should be used for defense",
                               false);
 
             integer_prompt = DEFENSE_TROOPS_COUNT;
