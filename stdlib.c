@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <limits.h>
 #include <platform.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -68,6 +70,25 @@ void qsort(void *base, size_t nmemb, size_t size,
 
     qsort(element(0), i, size, compar);
     qsort(element(i), nmemb - i, size, compar);
+}
+
+
+void shuffle(void *base, size_t nmemb, size_t size)
+{
+    assert(size && INT_MAX / size >= nmemb);
+
+    char tmp[size];
+
+    for (int i = nmemb - 1; i >= 1; i--) {
+        int j = rand() % (i + 1);
+
+        void *ei = (void *)((uintptr_t)base + i * size);
+        void *ej = (void *)((uintptr_t)base + j * size);
+
+        memcpy(tmp, ei, size);
+        memcpy(ei, ej, size);
+        memcpy(ej, tmp, size);
+    }
 }
 
 

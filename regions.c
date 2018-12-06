@@ -7,12 +7,14 @@
 
 struct Region regions[REGION_COUNT] = {
     [MITHLOND] = {
+        .name = "Grey Havens",
         .continent = ERIADOR,
         .neighbors = { FORNARNOR, SHIRE, CARDOLAN },
         .troops_pos = { 170, 229 },
     },
 
     [FORNARNOR] = {
+        .name = "North Arnor",
         .continent = ERIADOR,
         .neighbors = { MITHLOND, SHIRE, CARDOLAN, IMLADRIS,
                        TAUR_E_NDAEDALOS },
@@ -20,18 +22,21 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [SHIRE] = {
+        .name = "Shire",
         .continent = ERIADOR,
         .neighbors = { MITHLOND, FORNARNOR, CARDOLAN },
         .troops_pos = { 385, 303 },
     },
 
     [CARDOLAN] = {
+        .name = "Cardolan",
         .continent = ERIADOR,
         .neighbors = { MITHLOND, FORNARNOR, SHIRE, IMLADRIS, ANGRENOST },
         .troops_pos = { 460, 373 },
     },
 
     [IMLADRIS] = {
+        .name = "Rivendell",
         .continent = ERIADOR,
         .neighbors = { FORNARNOR, CARDOLAN, ANGRENOST,
                        TAUR_E_NDAEDALOS, LOTHLORIEN },
@@ -39,6 +44,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [ANGRENOST] = {
+        .name = "Isengard",
         .continent = ERIADOR,
         .neighbors = { CARDOLAN, IMLADRIS,
                        LOTHLORIEN, FANGORN, ROHAN, PINNATH_GELIN },
@@ -47,6 +53,7 @@ struct Region regions[REGION_COUNT] = {
 
 
     [TAUR_E_NDAEDALOS] = {
+        .name = "Mirkwood",
         .continent = ROHAN_RHOVANION,
         .neighbors = { FORNARNOR, IMLADRIS,
                        LOTHLORIEN, RHOVANION },
@@ -54,6 +61,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [LOTHLORIEN] = {
+        .name = "Lothlorien",
         .continent = ROHAN_RHOVANION,
         .neighbors = { IMLADRIS, ANGRENOST,
                        TAUR_E_NDAEDALOS, FANGORN, ROHAN, RHOVANION },
@@ -61,6 +69,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [FANGORN] = {
+        .name = "Fangorn",
         .continent = ROHAN_RHOVANION,
         .neighbors = { ANGRENOST,
                        LOTHLORIEN, ROHAN },
@@ -68,6 +77,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [ROHAN] = {
+        .name = "Rohan",
         .continent = ROHAN_RHOVANION,
         .neighbors = { ANGRENOST,
                        LOTHLORIEN, FANGORN, RHOVANION,
@@ -76,6 +86,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [RHOVANION] = {
+        .name = "Rhovanion",
         .continent = ROHAN_RHOVANION,
         .neighbors = { TAUR_E_NDAEDALOS, LOTHLORIEN, ROHAN,
                        ITHILIEN,
@@ -85,6 +96,7 @@ struct Region regions[REGION_COUNT] = {
 
 
     [PINNATH_GELIN] = {
+        .name = "Pinnath Gelin",
         .continent = GONDOR,
         .neighbors = { ANGRENOST,
                        ROHAN,
@@ -93,6 +105,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [MINAS_TIRITH] = {
+        .name = "Minas Tirith",
         .continent = GONDOR,
         .neighbors = { ROHAN,
                        PINNATH_GELIN, ITHILIEN },
@@ -100,6 +113,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [ITHILIEN] = {
+        .name = "Ithilien",
         .continent = GONDOR,
         .neighbors = { ROHAN, RHOVANION,
                        MINAS_TIRITH,
@@ -109,6 +123,7 @@ struct Region regions[REGION_COUNT] = {
 
 
     [GORGOROTH] = {
+        .name = "Gorgoroth",
         .continent = MORDOR,
         .neighbors = { RHOVANION,
                        ITHILIEN,
@@ -117,6 +132,7 @@ struct Region regions[REGION_COUNT] = {
     },
 
     [NURN] = {
+        .name = "Nurn",
         .continent = MORDOR,
         .neighbors = { RHOVANION,
                        ITHILIEN,

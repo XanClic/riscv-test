@@ -34,6 +34,8 @@ int rand(void);
 void qsort(void *base, size_t nmemb, size_t size,
            int (*compar)(const void *, const void *));
 
+void shuffle(void *base, size_t nmemb, size_t size);
+
 static inline int abs(int j)
 {
     return j < 0 ? -j : j;

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <cards.h>
 #include <font.h>
 #include <game-logic.h>
 #include <image.h>
@@ -33,11 +34,16 @@ typedef enum GamePhase {
 
 typedef enum MainPhase {
     MAIN_WAITING_FOR_OTHER,
+
+    MAIN_TRADE_IN_CARDS,
     MAIN_REINFORCEMENT,
     MAIN_BATTLE,
+    MAIN_BATTLE_TRADE_IN_CARDS,
     MAIN_MOVEMENT,
 
-    MAIN_PHASE_COUNT
+    MAIN_PHASE_COUNT,
+
+    MAIN_START = MAIN_TRADE_IN_CARDS
 } MainPhase;
 
 
@@ -49,7 +55,9 @@ typedef enum MainPhase {
 #define STATUS_INFO_Y   120
 #define STATUS_INFO_H    40
 #define STATUS_PROMPT_Y 160
-#define STATUS_PROMPT_H  40
+#define STATUS_PROMPT_H  20
+#define STATUS_HAND_Y   180
+#define STATUS_HAND_H   460
 #define STATUS_ERROR_Y  800
 #define STATUS_ERROR_H   80
 
@@ -93,7 +101,7 @@ static int region_troops_max_w, region_troops_max_h;
 
 static int headings_w, headings_h = STATUS_PHASE_H;
 static uint32_t *game_phase_headings[GAME_PHASE_COUNT];
-static uint32_t *main_phase_headings[GAME_PHASE_COUNT];
+static uint32_t *main_phase_headings[MAIN_PHASE_COUNT];
 
 static int dice_w, dice_h;
 static uint32_t *dice_img[6];
@@ -138,6 +146,21 @@ _Static_assert(PARTY_COUNT > 1 &&
                PARTY_COUNT < ARRAY_SIZE(initial_troops_reference),
                "Invalid party count");
 
+/* This is not scaled down.  Collecting three cards is comparatively
+ * more difficult with fewer regions overall (and fewer initial
+ * armies), so we can use the same numbers as in standard game. */
+static const int trade_in_troops[] = {
+    4,
+    6,
+    8,
+    10,
+    12,
+    15,
+};
+static const int trade_in_troops_multiplier = 5;
+
+static int trade_in_set_index;
+
 enum IntegerPromptPurpose {
     NO_PROMPT,
     ATTACK_TROOPS_COUNT,
@@ -153,6 +176,17 @@ static int integer_prompt_value;
 
 static bool party_defeated[PARTY_COUNT];
 
+static bool draw_card_this_turn;
+static int focused_card = -1;
+static uint64_t ai_select_trade_in_timestamp = 0;
+static uint64_t ai_do_trade_in_timestamp = (uint64_t)-1;
+
+static uint32_t *card_design_img[CARD_DESIGN_COUNT + 1]; // 32x32
+static uint32_t *card_bg_img, *card_hover_img, *card_selected_img; // 280x40
+
+_Static_assert(CARD_WILDCARD == CARD_DESIGN_COUNT,
+               "CARD_WILDCARD should be at index CARD_DESIGN_COUNT");
+
 
 static void queue_sfx(const LoadedSound *sfx)
 {
@@ -160,10 +194,29 @@ static void queue_sfx(const LoadedSound *sfx)
                                      sfx->frame_rate, sfx->channels, NULL);
 }
 
-static bool load_sfx(const char *fname, LoadedSound *sfx)
+static void load_sfx(const char *fname, LoadedSound *sfx)
 {
-    return load_ogg_vorbis(fname, &sfx->samples, &sfx->frame_count,
-                           &sfx->frame_rate, &sfx->channels);
+    if (!load_ogg_vorbis(fname, &sfx->samples, &sfx->frame_count,
+                         &sfx->frame_rate, &sfx->channels))
+    {
+        abort();
+    }
+}
+
+static void __attribute__((format(printf, 1, 6)))
+    load_img(const char *fname_format, uint32_t **d, int *w, int *h, int s, ...)
+{
+    va_list ap;
+    char fname[256];
+
+    va_start(ap, s);
+    vsnprintf(fname, sizeof(fname), fname_format, ap);
+    va_end(ap);
+
+    if (!load_image(fname, d, w, h, s)) {
+        printf("Failed to load %s\n", fname);
+        abort();
+    }
 }
 
 
@@ -184,23 +237,10 @@ void init_game(void)
 
     platform_funcs.limit_pointing_device(fbw, fbh);
 
-    if (!load_image("/bg.png", &bg_image, &fbw, &fbh, fb_stride)) {
-        puts("Failed to load background image");
-        abort();
-    }
+    load_img("/bg.png", &bg_image, &fbw, &fbh, fb_stride);
 
     uint32_t *region_areas_img = NULL;
-    if (!load_image("/region-areas.png", &region_areas_img, &fbw, &fbh, 0)) {
-        puts("Failed to load region area image");
-        abort();
-    }
-
-    if (!load_image("/error-icon.png", &error_icon.d, &error_icon.w,
-                    &error_icon.h, 0))
-    {
-        puts("Failed to load error icon");
-        abort();
-    }
+    load_img("/region-areas.png", &region_areas_img, &fbw, &fbh, 0);
 
     region_areas = malloc(fbw * fbh);
     uint32_t *region_areas_img_ptr = region_areas_img;
@@ -227,148 +267,93 @@ void init_game(void)
         }
     }
 
-    if (!load_image("/army-none.png", &army_img[RED][0],
-                    &army_img_w, &army_img_h, 0))
-    {
-        puts("Failed to load army-none.png");
-        abort();
+    load_img("/error-icon.png", &error_icon.d, &error_icon.w, &error_icon.h, 0);
+
+    load_img("/army-none.png", &army_img[0][0], &army_img_w, &army_img_h, 0);
+    for (Party p = 1; p < PARTY_COUNT; p++) {
+        army_img[p][0] = army_img[0][0];
     }
-    army_img[BLUE][0] = army_img[RED][0];
 
     for (int i = 1; i < 100; i++) {
         for (Party p = 0; p < PARTY_COUNT; p++) {
-            char fname[32];
-            snprintf(fname, sizeof(fname), "/army-%s-%i.png", party_name[p], i);
-            if (!load_image(fname, &army_img[p][i],
-                            &army_img_w, &army_img_h, 0))
-            {
-                printf("Failed to load %s\n", fname);
-                abort();
-            }
+            load_img("/army-%s-%i.png", &army_img[p][i], &army_img_w,
+                     &army_img_h, 0, party_name[p], i);
         }
     }
 
-    if (!load_image("/focus-region.png", &region_focus_img.d,
-                    &region_focus_img.w, &region_focus_img.h, 0))
-    {
-        puts("Failed to load focus-region.png");
-        abort();
-    }
+    load_img("/focus-region.png", &region_focus_img.d, &region_focus_img.w,
+             &region_focus_img.h, 0);
     region_troops_max_w = MAX(region_troops_max_w, region_focus_img.w);
     region_troops_max_h = MAX(region_troops_max_h, region_focus_img.h);
 
-    if (!load_image("/attacking-region.png", &attacking_region_img.d,
-                    &attacking_region_img.w, &attacking_region_img.h, 0))
-    {
-        puts("Failed to load attacking-region.png");
-        abort();
-    }
+    load_img("/attacking-region.png", &attacking_region_img.d,
+             &attacking_region_img.w, &attacking_region_img.h, 0);
     region_troops_max_w = MAX(region_troops_max_w, attacking_region_img.w);
     region_troops_max_h = MAX(region_troops_max_h, attacking_region_img.h);
 
-    if (!load_image("/attacked-region.png", &attacked_region_img.d,
-                    &attacked_region_img.w, &attacked_region_img.h, 0))
-    {
-        puts("Failed to load attacked-region.png");
-        abort();
-    }
+    load_img("/attacked-region.png", &attacked_region_img.d,
+             &attacked_region_img.w, &attacked_region_img.h, 0);
     region_troops_max_w = MAX(region_troops_max_w, attacked_region_img.w);
     region_troops_max_h = MAX(region_troops_max_h, attacked_region_img.h);
 
-    if (!load_image("/origin-region.png", &origin_region_img.d,
-                    &origin_region_img.w, &origin_region_img.h, 0))
-    {
-        puts("Failed to load origin-region.png");
-        abort();
-    }
+    load_img("/origin-region.png", &origin_region_img.d, &origin_region_img.w,
+             &origin_region_img.h, 0);
     region_troops_max_w = MAX(region_troops_max_w, origin_region_img.w);
     region_troops_max_h = MAX(region_troops_max_h, origin_region_img.h);
 
-    if (!load_image("/destination-region.png", &destination_region_img.d,
-                    &destination_region_img.w, &destination_region_img.h, 0))
-    {
-        puts("Failed to load destination-region.png");
-        abort();
-    }
+    load_img("/destination-region.png", &destination_region_img.d,
+             &destination_region_img.w, &destination_region_img.h, 0);
     region_troops_max_w = MAX(region_troops_max_w, destination_region_img.w);
     region_troops_max_h = MAX(region_troops_max_h, destination_region_img.h);
 
     for (int i = 0; i < 6; i++) {
-        char fname[16];
-        snprintf(fname, sizeof(fname), "/die-%i.png", i + 1);
-        if (!load_image(fname, &dice_img[i], &dice_w, &dice_h, 0)) {
-            printf("Failed to load %s\n", fname);
-            abort();
-        }
+        load_img("/die-%i.png", &dice_img[i], &dice_w, &dice_h, 0, i + 1);
     }
 
-    if (!load_image("/defeat.png", &defeat_img, &fbw, &fbh, 0)) {
-        puts("Failed to load defeat.png");
-        abort();
-    }
-
-    if (!load_image("/victory.png", &victory_img, &fbw, &fbh, 0)) {
-        puts("Failed to load victory.png");
-        abort();
-    }
+    load_img("/defeat.png", &defeat_img, &fbw, &fbh, 0);
+    load_img("/victory.png", &victory_img, &fbw, &fbh, 0);
 
     headings_w = fbw - STATUS_X;
+    load_img("/preparation.png", &game_phase_headings[PREPARATION],
+             &headings_w, &headings_h, 0);
+    load_img("/game-over.png", &game_phase_headings[GAME_OVER],
+             &headings_w, &headings_h, 0);
+    load_img("/waiting-for-other.png",
+             &main_phase_headings[MAIN_WAITING_FOR_OTHER],
+             &headings_w, &headings_h, 0);
+    load_img("/reinforcements.png", &main_phase_headings[MAIN_REINFORCEMENT],
+             &headings_w, &headings_h, 0);
+    load_img("/trade-in.png", &main_phase_headings[MAIN_TRADE_IN_CARDS],
+             &headings_w, &headings_h, 0);
+    load_img("/battle.png", &main_phase_headings[MAIN_BATTLE],
+             &headings_w, &headings_h, 0);
+    load_img("/movement.png", &main_phase_headings[MAIN_MOVEMENT],
+             &headings_w, &headings_h, 0);
 
-    if (!load_image("/preparation.png", &game_phase_headings[PREPARATION],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load preparation.png");
-        abort();
+    main_phase_headings[MAIN_BATTLE_TRADE_IN_CARDS] =
+        main_phase_headings[MAIN_TRADE_IN_CARDS];
+
+    for (CardDesign d = 0; d <= CARD_WILDCARD; d++) {
+        int card_design_w = 32, card_design_h = 32;
+        load_img("/card-design-%i.png", &card_design_img[d], &card_design_w,
+                 &card_design_h, 0, d);
     }
 
-    if (!load_image("/game-over.png", &game_phase_headings[GAME_OVER],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load game-over.png");
-        abort();
-    }
+    int card_marker_w = fbw - STATUS_X, card_marker_h = 40;
+    load_img("/card-bg.png", &card_bg_img, &card_marker_w, &card_marker_h, 0);
+    load_img("/card-hover.png", &card_hover_img,
+             &card_marker_w, &card_marker_h, 0);
+    load_img("/card-selected.png", &card_selected_img,
+             &card_marker_w, &card_marker_h, 0);
 
-    if (!load_image("/waiting-for-other.png",
-                    &main_phase_headings[MAIN_WAITING_FOR_OTHER],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load waiting-for-other.png");
-        abort();
-    }
-
-    if (!load_image("/reinforcements.png",
-                    &main_phase_headings[MAIN_REINFORCEMENT],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load reinforcements.png");
-        abort();
-    }
-
-    if (!load_image("/battle.png", &main_phase_headings[MAIN_BATTLE],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load battle.png");
-        abort();
-    }
-
-    if (!load_image("/movement.png", &main_phase_headings[MAIN_MOVEMENT],
-                    &headings_w, &headings_h, 0))
-    {
-        puts("Failed to load movement.png");
-        abort();
-    }
-
-    if (!load_sfx("/battle.ogg", &battle_snd) ||
-        !load_sfx("/beep1.ogg", &beep1_snd) ||
-        !load_sfx("/beep2.ogg", &beep2_snd) ||
-        !load_sfx("/capture.ogg", &capture_snd) ||
-        !load_sfx("/movement.ogg", &movement_snd) ||
-        !load_sfx("/notification.ogg", &notification_snd) ||
-        !load_sfx("/reinforcements.ogg", &reinforcements_snd) ||
-        !load_sfx("/victory.ogg", &victory_snd))
-    {
-        abort();
-    }
+    load_sfx("/battle.ogg", &battle_snd);
+    load_sfx("/beep1.ogg", &beep1_snd);
+    load_sfx("/beep2.ogg", &beep2_snd);
+    load_sfx("/capture.ogg", &capture_snd);
+    load_sfx("/movement.ogg", &movement_snd);
+    load_sfx("/notification.ogg", &notification_snd);
+    load_sfx("/reinforcements.ogg", &reinforcements_snd);
+    load_sfx("/victory.ogg", &victory_snd);
 }
 
 
@@ -397,8 +382,6 @@ static void clear_to_bg(int x, int y, int w, int h)
                (char *)(bg_image + x) + (y + yofs) * fb_stride,
                w * sizeof(uint32_t));
     }
-
-    platform_funcs.fb_flush(x, y, w, h);
 }
 
 
@@ -438,11 +421,7 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
         return;
     }
 
-    for (int y = ymin; y < ymax; y++) {
-        memcpy((uint32_t *)((char *)fb + y * fb_stride) + xmin,
-               (uint32_t *)((char *)bg_image + y * fb_stride) + xmin,
-               (xmax - xmin) * sizeof(uint32_t));
-    }
+    clear_to_bg(xmin, ymin, xmax - xmin, ymax - ymin);
 
     for (RegionID i = 1; i < REGION_COUNT; i++) {
         ablitlmt(fb, army_img[regions[i].taken_by][MIN(regions[i].troops, 99)],
@@ -521,6 +500,79 @@ static void refresh(int xmin, int ymin, int xmax, int ymax)
 }
 
 
+static void refresh_hand(void)
+{
+    Party p;
+    for (p = 0; p < PARTY_COUNT; p++) {
+        if (main_phase[p] != MAIN_WAITING_FOR_OTHER) {
+            break;
+        }
+    }
+
+    clear_to_bg(STATUS_X, STATUS_HAND_Y, fbw - STATUS_X, STATUS_HAND_H);
+
+    if (p == PARTY_COUNT) {
+        platform_funcs.fb_flush(STATUS_X, STATUS_HAND_Y, fbw - STATUS_X,
+                                STATUS_HAND_H);
+    }
+
+    if (p == PLAYER) {
+        font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_HAND_Y,
+                       "Your cards:", 0);
+    }
+
+    // Hoo boy FIXME
+    int card_offset = p == PLAYER ? 20 : 30;
+
+    int y = STATUS_HAND_Y + card_offset;
+    for (int i = 0; i < party_hand_size(p); i++) {
+        const Card *c = party_hand_card(p, i);
+
+        // You can have a maximum of eleven cards in hand (I think),
+        // so this should be enough
+        assert(y < STATUS_HAND_Y + STATUS_HAND_H);
+
+        if (p == PLAYER || c->selected) {
+            int w = fbw - STATUS_X;
+            ablitlmt(fb, card_bg_img, STATUS_X, y, w, 40, fb_stride,
+                     w * sizeof(uint32_t), STATUS_X, y, fbw, y + 40);
+        }
+
+        if (c->selected) {
+            int w = fbw - STATUS_X;
+            ablitlmt(fb, card_selected_img, STATUS_X, y, w, 40, fb_stride,
+                     w * sizeof(uint32_t), STATUS_X, y, fbw, y + 40);
+        }
+
+        if (p == PLAYER && focused_card == i) {
+            int w = fbw - STATUS_X;
+            ablitlmt(fb, card_hover_img, STATUS_X, y, w, 40, fb_stride,
+                     w * sizeof(uint32_t), STATUS_X, y, fbw, y + 40);
+        }
+
+        if (p == PLAYER || c->selected) {
+            ablitlmt(fb, card_design_img[c->design], STATUS_X + 16, y + 4, 32, 32,
+                     fb_stride, 32 * sizeof(uint32_t), STATUS_X, y, fbw, y + 40);
+
+            font_draw_text(fb, fbw - 16, fbh, fb_stride, STATUS_X + 56, y + 14,
+                           c->design == CARD_WILDCARD ? "(Wildcard)"
+                                                      : regions[c->region].name,
+                           0);
+
+            y += 40;
+        }
+    }
+
+    if (y > STATUS_HAND_Y + card_offset && p != PLAYER) {
+        font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_HAND_Y,
+                       "Cards traded in by your opponent:", 0);
+    }
+
+    platform_funcs.fb_flush(STATUS_X, STATUS_HAND_Y, fbw - STATUS_X,
+                            STATUS_HAND_H);
+}
+
+
 static void clear_invalid_move(void);
 
 static void important_message(const char *message, bool error)
@@ -561,6 +613,35 @@ static void clear_invalid_move(void)
 }
 
 
+static bool has_any_card_set(Party p)
+{
+    int design_counts[CARD_DESIGN_COUNT] = { 0 };
+    int wildcard_count = 0;
+
+    for (int i = 0; i < party_hand_size(p); i++) {
+        if (party_hand_card(p, i)->design == CARD_WILDCARD) {
+            wildcard_count++;
+        } else {
+            design_counts[party_hand_card(p, i)->design]++;
+        }
+    }
+
+    int different_designs = wildcard_count;
+    bool has_single_set = false;
+
+    for (CardDesign d = 0; d < CARD_DESIGN_COUNT; d++) {
+        if (design_counts[d]) {
+            different_designs++;
+        }
+        if (design_counts[d] + wildcard_count >= 3) {
+            has_single_set = true;
+        }
+    }
+
+    return has_single_set || different_designs == CARD_DESIGN_COUNT;
+}
+
+
 static void switch_main_phase(Party p, MainPhase new_phase)
 {
     switch (new_phase) {
@@ -583,7 +664,7 @@ static void switch_main_phase(Party p, MainPhase new_phase)
 #endif
                        )
                     {
-                        switch_main_phase(np, MAIN_REINFORCEMENT);
+                        switch_main_phase(np, MAIN_START);
                         break;
                     }
 
@@ -598,6 +679,35 @@ static void switch_main_phase(Party p, MainPhase new_phase)
             break;
         }
 
+        case MAIN_TRADE_IN_CARDS: {
+            if (!has_any_card_set(p)) {
+                switch_main_phase(p, MAIN_REINFORCEMENT);
+                return;
+            }
+            if (p == PLAYER) {
+                clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
+                ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
+                         STATUS_PHASE_Y, headings_w, headings_h, fb_stride,
+                         headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
+                         fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
+                font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
+                               "Choose cards to trade in for extra armies.", 0);
+                if (party_hand_size(p) < 5) {
+                    font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
+                                   STATUS_INFO_Y,
+                                   "Press enter to confirm, or the space bar "
+                                   "to skip.", 0);
+                }
+                platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
+            }
+            break;
+        }
+
+        case MAIN_BATTLE_TRADE_IN_CARDS: {
+            assert(has_any_card_set(p));
+            abort(); // FIXME
+        }
+
         case MAIN_REINFORCEMENT: {
             int regions_taken = 0;
             uint32_t continents_taken = (1u << CONTINENT_COUNT) - 1;
@@ -609,7 +719,7 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                 }
             }
             // 2 as minimum instead of 3 because we don't have 42 regions
-            troops_to_place[p] = MAX(2, regions_taken / 3);
+            troops_to_place[p] += MAX(2, regions_taken / 3);
             for (ContinentID c = 1; c < CONTINENT_COUNT; c++) {
                 if (continents_taken & (1u << c)) {
                     troops_to_place[p] += continent_bonuses[c];
@@ -644,9 +754,9 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                          headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
                          fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                               "Choose region to attack from", 0);
+                               "Choose a region to attack from.", 0);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
-                               "Press the space bar to end the battle phase",
+                               "Press the space bar to end the battle phase.",
                                0);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
@@ -654,6 +764,11 @@ static void switch_main_phase(Party p, MainPhase new_phase)
         }
 
         case MAIN_MOVEMENT: {
+            if (draw_card_this_turn) {
+                draw_card_from_stack(p);
+                refresh_hand();
+                draw_card_this_turn = false;
+            }
             if (p == PLAYER) {
                 clear_to_bg(STATUS_X, 0, fbw - STATUS_X, fbh);
                 ablitlmt(fb, main_phase_headings[new_phase], STATUS_X,
@@ -661,9 +776,9 @@ static void switch_main_phase(Party p, MainPhase new_phase)
                          headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
                          fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                               "Choose one region to move troops from", 0);
+                               "Choose one region to move troops from.", 0);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
-                               "Press the space bar to skip", 0);
+                               "Press the space bar to skip.", 0);
                 platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X, fbh);
             }
             break;
@@ -674,17 +789,7 @@ static void switch_main_phase(Party p, MainPhase new_phase)
     }
 
     main_phase[p] = new_phase;
-}
-
-
-static void __attribute__((unused)) shuffle(int *array, int nmemb)
-{
-    for (int i = nmemb - 1; i >= 1; i--) {
-        int j = rand() % (i + 1);
-        int tmp = array[i];
-        array[i] = array[j];
-        array[j] = tmp;
-    }
+    refresh_hand();
 }
 
 
@@ -710,7 +815,7 @@ static void switch_game_phase(GamePhase new_phase)
             for (RegionID r = 1; r < REGION_COUNT; r++) {
                 region_stack[r - 1] = r;
             }
-            shuffle(region_stack, REGION_COUNT - 1);
+            shuffle(region_stack, REGION_COUNT - 1, sizeof(region_stack[0]));
 
             int region_stack_i = 0;
 
@@ -798,10 +903,11 @@ static void switch_game_phase(GamePhase new_phase)
         }
 
         case MAIN: {
+            setup_card_stack();
             for (Party p = 0; p < PARTY_COUNT; p++) {
                 switch_main_phase(p, MAIN_WAITING_FOR_OTHER);
             }
-            switch_main_phase(0, MAIN_REINFORCEMENT);
+            switch_main_phase(0, MAIN_START);
             break;
         }
 
@@ -943,7 +1049,7 @@ static bool battle(void)
 
     char casualties[128];
     snprintf(casualties, sizeof(casualties),
-             "Attacker lost %i %s, defender lost %i %s",
+             "Attacker lost %i %s, defender lost %i %s.",
              attacking_losses, attacking_losses == 1 ? "army" : "armies",
              defending_losses, defending_losses == 1 ? "army" : "armies");
     font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_ERROR_Y,
@@ -959,17 +1065,100 @@ static bool battle(void)
         return false;
     } else {
         int troops_moved = attacking_count - attacking_losses;
+        Party attacker = regions[attacking_region].taken_by;
+        Party defender = regions[defending_region].taken_by;
 
-        regions[defending_region].taken_by = regions[attacking_region].taken_by;
+        regions[defending_region].taken_by = attacker;
         regions[attacking_region].troops -= troops_moved;
         regions[defending_region].troops += troops_moved;
 
         queue_sfx(&capture_snd);
 
+        assert(!party_defeated[defender]);
         check_win_condition();
+
+        if (party_defeated[defender] && game_phase != GAME_OVER) {
+            join_party_hands(attacker, defender);
+            refresh_hand();
+            if (party_hand_size(attacker) >= 6) {
+                switch_main_phase(attacker, MAIN_BATTLE_TRADE_IN_CARDS);
+            }
+        }
+        draw_card_this_turn = true;
 
         return true;
     }
+}
+
+
+static bool trade_in_cards(Party p, Card cards[3])
+{
+    int design_counts[CARD_DESIGN_COUNT + 1] = { 0 };
+
+    for (int i = 0; i < 3; i++) {
+        design_counts[cards[i].design]++;
+    }
+
+    int different_designs = design_counts[CARD_WILDCARD];
+    bool has_single_set = false;
+    for (CardDesign d = 0; d < CARD_DESIGN_COUNT; d++) {
+        different_designs += design_counts[d] > 0;
+        has_single_set |= design_counts[d] + design_counts[CARD_WILDCARD] >=
+                          CARD_DESIGN_COUNT;
+    }
+
+    if (different_designs < CARD_DESIGN_COUNT && !has_single_set) {
+        return false;
+    }
+
+    /* XXX: The rules are inconclusive on this.  Some say you do not
+     * get any bonus for matching regions that you have occupied.
+     * Others say you get two armies, but only once per turn.  It is
+     * unclear, however, how the matching region is chosen in this
+     * case (probably by the player).  Finally, at least the (2015)
+     * German manual says you get two extra armies if a card matches a
+     * region taken by you, and nothing about a maximum, so this
+     * sounds like you simply get two armies per matching region.
+     *
+     * I like having a bit of a strategic aspect here, so I want to
+     * include extra armies.  I find it a bit boring to only hand out
+     * two extra armies, because this will usually be a 1v1 game on a
+     * small map, so you are very likely to just always have some card
+     * that matches a region you own.  But having all three match?
+     * That is more interesting.
+     *
+     * Sure, this will empower the offense even more (because the more
+     * regions you have, the better), which I do not usually like, but
+     * this (advent calendar) version of the game is supposed to be
+     * quick, so hey, that's actually good.
+     */
+    bool region_match = false;
+    for (int i = 0; i < 3; i++) {
+        if (cards[i].region && regions[cards[i].region].taken_by == p) {
+            // No empty regions during regular gameplay
+            assert(regions[cards[i].region].troops);
+            regions[cards[i].region].troops += 2;
+            region_match = true;
+        }
+    }
+
+    if (trade_in_set_index < (int)ARRAY_SIZE(trade_in_troops)) {
+        troops_to_place[p] += trade_in_troops[trade_in_set_index++];
+    } else {
+        troops_to_place[p] += trade_in_troops[ARRAY_SIZE(trade_in_troops) - 1]
+                            + (++trade_in_set_index -
+                               ARRAY_SIZE(trade_in_troops)) *
+                              trade_in_troops_multiplier;
+    }
+
+    if (region_match) {
+        refresh(0, 0, STATUS_X, fbh);
+        queue_sfx(&reinforcements_snd);
+    } else {
+        queue_sfx(&beep2_snd);
+    }
+
+    return true;
 }
 
 
@@ -1040,19 +1229,41 @@ static bool get_ai_battle_params(Party p, RegionID *attacking,
             }
 
             bool last_in_continent = true;
+            int ric = 1; // regions in continent
+            int ricobto = 0; // regions in continent owned by that opponent
             ContinentID c = regions[d].continent;
             for (RegionID cr = 1; cr < REGION_COUNT; cr++) {
-                if (cr != d && regions[cr].continent == c &&
-                    regions[cr].taken_by != p)
-                {
+                if (cr == d || regions[cr].continent != c) {
+                    continue;
+                }
+
+                ric++;
+
+                if (regions[cr].taken_by != p) {
                     last_in_continent = false;
-                    break;
+                }
+                if (regions[cr].taken_by == regions[d].taken_by) {
+                    ricobto++;
                 }
             }
 
             int score = regions[r].troops - regions[d].troops;
             if (last_in_continent) {
                 score += 5;
+            }
+
+            // Try to keep others from taking continents
+            score += MAX(0, 10 * (2 * ricobto - ric) / ric);
+
+            if (score > 0) {
+                // If attacking makes sense and we have a card with
+                // this region in hand, let's (maybe) go for it
+                for (int j = 0; j < party_hand_size(p); j++) {
+                    if (party_hand_card(p, j)->region == d) {
+                        score += 2;
+                        break;
+                    }
+                }
             }
 
             score -= rand() % 4;
@@ -1272,14 +1483,34 @@ static void ai_move(Party p)
                 }
                 no_enemy_neighbors = false;
 
+                bool is_neutral = false;
+#ifdef HAVE_NEUTRAL
+                is_neutral = regions[n].taken_by == NEUTRAL;
+#endif
+
                 int diff = regions[r].troops - regions[n].troops;
-                if (diff < -troops_to_place[p]) {
-                    // All is lost
-                    region_scores[r] -= 20;
-                } else if (diff < 0) {
-                    region_scores[r] += -diff + 1;
+                if (is_neutral) {
+                    if (diff >= -2 && diff < 1) {
+                        // Give a bit of incentive
+                        region_scores[r] += 2;
+                    }
                 } else {
-                    region_scores[r] += 1;
+                    if (diff < -troops_to_place[p]) {
+                        // All is lost
+                        region_scores[r] -= 20;
+                    } else if (diff < 0) {
+                        region_scores[r] += -diff + 2;
+                    } else {
+                        region_scores[r] += 1;
+                    }
+                }
+
+                for (int j = 0; j < party_hand_size(p); j++) {
+                    if (party_hand_card(p, j)->region == r) {
+                        // Oh, this might be useful
+                        region_scores[r] += 3;
+                        break;
+                    }
                 }
             }
 
@@ -1454,6 +1685,183 @@ static void ai_place_troops(Party p)
 }
 
 
+static bool ai_select_trade_in_cards(Party p)
+{
+    int design_counts[CARD_DESIGN_COUNT] = { 0 };
+    int regions_taken[CARD_DESIGN_COUNT + 1] = { 0 };
+    int wildcard_count = 0;
+
+    for (int i = 0; i < party_hand_size(p); i++) {
+        const Card *c = party_hand_card(p, i);
+        if (c->design == CARD_WILDCARD) {
+            wildcard_count++;
+        } else {
+            design_counts[c->design]++;
+            if (regions[c->region].taken_by == p) {
+                regions_taken[c->design]++;
+            }
+        }
+    }
+
+    // See the XXX not in trade_in_cards() on why we count regions
+    // the way it's done here
+    int max_regions_taken = -1;
+    CardDesign max_regions_taken_d = CARD_DESIGN_COUNT;
+
+    int rainbow_regions_taken = 0;
+    int rainbow_wildcard_used = 0;
+
+    for (CardDesign d = 0; d < CARD_DESIGN_COUNT; d++) {
+        if (design_counts[d] + wildcard_count >= 3) {
+            if (regions_taken[d] > max_regions_taken) {
+                max_regions_taken = regions_taken[d];
+                max_regions_taken_d = d;
+            }
+        }
+
+        if (rainbow_regions_taken >= 0) {
+            if (design_counts[d]) {
+                if (regions_taken[d]) {
+                    rainbow_regions_taken++;
+                }
+            } else if (rainbow_wildcard_used < wildcard_count) {
+                rainbow_wildcard_used++;
+            } else {
+                rainbow_regions_taken = -1;
+            }
+        }
+    }
+
+    int regions_owned_by_this_player = 0;
+    for (RegionID r = 1; r < REGION_COUNT; r++) {
+        if (regions[r].taken_by == p) {
+            regions_owned_by_this_player++;
+        }
+    }
+
+    int min_regions;
+    if (regions_owned_by_this_player < REGION_COUNT / 2) {
+        // Looks bad, let's get those extra armies right away
+        min_regions = 0;
+    } else {
+        // No need to rush, wait until we can get more from our cards
+        min_regions = 1;
+    }
+
+    if (rainbow_regions_taken > max_regions_taken) {
+        if (main_phase[p] == MAIN_TRADE_IN_CARDS &&
+            rainbow_regions_taken < min_regions && party_hand_size(p) <= 4)
+        {
+            return false;
+        }
+
+        rainbow_wildcard_used = 0;
+        for (CardDesign d = 0; d < CARD_DESIGN_COUNT; d++) {
+            if (design_counts[d]) {
+                if (regions_taken[d]) {
+                    for (int i = 0; i < party_hand_size(p); i++) {
+                        const Card *c = party_hand_card(p, i);
+                        if (c->design == d && regions[c->region].taken_by == p)
+                        {
+                            party_hand_select_card(p, i);
+                            break;
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < party_hand_size(p); i++) {
+                        const Card *c = party_hand_card(p, i);
+                        if (c->design == d) {
+                            party_hand_select_card(p, i);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                assert(rainbow_wildcard_used++ < wildcard_count);
+                for (int i = 0; i < party_hand_size(p); i++) {
+                    const Card *c = party_hand_card(p, i);
+                    if (c->design == CARD_WILDCARD) {
+                        party_hand_select_card(p, i);
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        if (max_regions_taken < 0) {
+            assert(party_hand_size(p) <= 4);
+            return false;
+        }
+
+        if (main_phase[p] == MAIN_TRADE_IN_CARDS &&
+            max_regions_taken < min_regions && party_hand_size(p) <= 4)
+        {
+            return false;
+        }
+
+        int cards_i = 0;
+        for (int i = 0; i < party_hand_size(p) && cards_i < 3; i++) {
+            const Card *c = party_hand_card(p, i);
+            if (c->design == max_regions_taken_d &&
+                regions[c->region].taken_by == p)
+            {
+                party_hand_select_card(p, i);
+            }
+        }
+
+        for (int i = 0; i < party_hand_size(p) && cards_i < 3; i++) {
+            const Card *c = party_hand_card(p, i);
+            if (c->design == max_regions_taken_d) {
+                party_hand_select_card(p, i);
+            }
+        }
+
+        for (int i = 0; i < party_hand_size(p) && cards_i < 3; i++) {
+            const Card *c = party_hand_card(p, i);
+            if (c->design == CARD_WILDCARD) {
+                party_hand_select_card(p, i);
+            }
+        }
+    }
+
+    return true;
+}
+
+
+static bool trade_in_selected_cards(Party p)
+{
+    int cards_i = 0;
+    Card cards[3];
+    memset(cards, 0, sizeof(cards));
+
+    for (int i = 0; i < party_hand_size(p); i++) {
+        const Card *c = party_hand_card(p, i);
+        if (c->selected) {
+            if (cards_i >= 3) {
+                return false;
+            }
+            cards[cards_i++] = *c;
+        }
+    }
+    if (cards_i != 3) {
+        return false;
+    }
+
+    if (!trade_in_cards(p, cards)) {
+        return false;
+    }
+
+    for (int i = 0; i < party_hand_size(p); i++) {
+        const Card *c = party_hand_card(p, i);
+        if (c->selected) {
+            party_hand_drop_card(p, i--);
+        }
+    }
+
+    return true;
+}
+
+
 void handle_game(void)
 {
     int refresh_xmin = fbw, refresh_xmax = 0;
@@ -1482,6 +1890,18 @@ void handle_game(void)
 
     if (game_phase == GAME_OVER) {
         return;
+    }
+
+    Party active_party;
+    if (game_phase == MAIN) {
+        for (active_party = 0; active_party < PARTY_COUNT; active_party++) {
+            if (main_phase[active_party] != MAIN_WAITING_FOR_OTHER) {
+                break;
+            }
+        }
+        assert(active_party < PARTY_COUNT);
+    } else {
+        active_party = PARTY_COUNT;
     }
 
     if (got_key_event && !key_up) {
@@ -1564,6 +1984,110 @@ void handle_game(void)
             platform_funcs.fb_flush(STATUS_X, STATUS_PROMPT_Y, fbw - STATUS_X,
                                     STATUS_PROMPT_H);
         }
+    }
+
+    if (main_phase[PLAYER] == MAIN_TRADE_IN_CARDS ||
+        main_phase[PLAYER] == MAIN_BATTLE_TRADE_IN_CARDS)
+    {
+        if (main_phase[PLAYER] == MAIN_TRADE_IN_CARDS &&
+            party_hand_size(PLAYER) < 5 &&
+            key_pressed == KEY_SPACE)
+        {
+            for (int i = 0; i < party_hand_size(PLAYER); i++) {
+                party_hand_deselect_card(PLAYER, i);
+            }
+            focused_card = -1;
+            switch_main_phase(PLAYER, MAIN_REINFORCEMENT);
+            goto post_logic;
+        } else if (main_phase[PLAYER] == MAIN_BATTLE_TRADE_IN_CARDS &&
+                   party_hand_size(PLAYER) < 5)
+        {
+            for (int i = 0; i < party_hand_size(PLAYER); i++) {
+                party_hand_deselect_card(PLAYER, i);
+            }
+            focused_card = -1;
+            switch_main_phase(PLAYER, MAIN_BATTLE);
+            goto post_logic;
+        }
+
+        int new_focused_card;
+        if (mouse_x >= STATUS_X && mouse_y >= STATUS_HAND_Y + 20 &&
+            mouse_y < STATUS_HAND_Y + STATUS_HAND_H)
+        {
+            new_focused_card = (mouse_y - STATUS_HAND_Y - 20) / 40;
+            if (new_focused_card >= party_hand_size(PLAYER)) {
+                new_focused_card = -1;
+            }
+        } else {
+            new_focused_card = -1;
+        }
+        if (new_focused_card != focused_card) {
+            focused_card = new_focused_card;
+            refresh_hand();
+        }
+
+        if (focused_card >= 0 && lbuttondown) {
+            if (party_hand_card(PLAYER, focused_card)->selected) {
+                queue_sfx(&beep1_snd);
+                party_hand_deselect_card(PLAYER, focused_card);
+            } else {
+                queue_sfx(&beep2_snd);
+                party_hand_select_card(PLAYER, focused_card);
+            }
+            refresh_hand();
+        }
+
+        if (key_pressed == KEY_ENTER) {
+            if (!trade_in_selected_cards(PLAYER)) {
+                invalid_move("This is not a valid set of cards to trade in");
+            } else if (!has_any_card_set(PLAYER)) {
+                focused_card = -1;
+                if (main_phase[PLAYER] == MAIN_TRADE_IN_CARDS) {
+                    switch_main_phase(PLAYER, MAIN_REINFORCEMENT);
+                } else {
+                    switch_main_phase(PLAYER, MAIN_BATTLE);
+                }
+            } else {
+                refresh_hand();
+
+                if (party_hand_size(PLAYER) < 5) {
+                    clear_to_bg(STATUS_X, STATUS_INFO_Y, fbw - STATUS_X,
+                                STATUS_INFO_H);
+
+                    font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X,
+                                   STATUS_INFO_Y,
+                                   "Press enter to confirm, or the space bar "
+                                   "to skip.", 0);
+
+                    platform_funcs.fb_flush(STATUS_X, STATUS_INFO_Y,
+                                            fbw - STATUS_X, STATUS_INFO_H);
+                }
+            }
+
+            goto post_logic;
+        }
+    } else if (main_phase[active_party] == MAIN_TRADE_IN_CARDS ||
+               main_phase[active_party] == MAIN_BATTLE_TRADE_IN_CARDS)
+    {
+        uint64_t now = platform_funcs.elapsed_us();
+        if (ai_do_trade_in_timestamp <= now) {
+            ai_do_trade_in_timestamp = (uint64_t)-1;
+            bool ret = trade_in_selected_cards(active_party);
+            assert(ret);
+            refresh_hand();
+            ai_select_trade_in_timestamp = now + 1000000;
+        } else if (ai_select_trade_in_timestamp <= now) {
+            if (ai_select_trade_in_cards(active_party)) {
+                refresh_hand();
+                ai_do_trade_in_timestamp = now + 3000000;
+                ai_select_trade_in_timestamp = (uint64_t)-1;
+            } else if (main_phase[active_party] == MAIN_TRADE_IN_CARDS) {
+                switch_main_phase(active_party, MAIN_REINFORCEMENT);
+            } else {
+                switch_main_phase(active_party, MAIN_BATTLE);
+            }
+        }
+        goto post_logic;
     }
 
     if (game_phase == PREPARATION) {
@@ -1697,7 +2221,12 @@ void handle_game(void)
 
         if (regions[focused_region].troops) {
             if (regions[focused_region].taken_by != p) {
-                invalid_move("Cannot place troops on enemy-controlled region.");
+                if (p == PLAYER) {
+                    invalid_move("Cannot place troops on enemy-controlled "
+                                 "region.");
+                } else {
+                    invalid_move("Cannot place troops on non-neutral region.");
+                }
                 goto post_logic;
             }
 
@@ -1809,10 +2338,10 @@ void handle_game(void)
 
         if (!attacking_region) {
             if (regions[focused_region].taken_by != PLAYER) {
-                invalid_move("This region does not belong to you");
+                invalid_move("This region does not belong to you.");
                 goto post_logic;
             } else if (regions[focused_region].troops < 2) {
-                invalid_move("To attack, you need at least two armies");
+                invalid_move("To attack, you need at least two armies.");
                 goto post_logic;
             }
 
@@ -1829,7 +2358,7 @@ void handle_game(void)
             queue_sfx(&beep2_snd);
         } else if (!defending_region) {
             if (regions[focused_region].taken_by == PLAYER) {
-                invalid_move("You can only attack enemy-controlled regions");
+                invalid_move("You can only attack enemy-controlled regions.");
                 goto post_logic;
             }
             // No empty regions
@@ -1844,7 +2373,7 @@ void handle_game(void)
             }
             if (!is_neighbor) {
                 invalid_move("You can only attack regions which share a border "
-                             "with the attacking region");
+                             "with the attacking region.");
                 goto post_logic;
             }
 
@@ -1856,21 +2385,21 @@ void handle_game(void)
             defending_region = NULL_REGION;
             queue_sfx(&beep2_snd);
         } else {
-            invalid_move("Battles only involve two regions");
+            invalid_move("Battles only involve two regions.");
             goto post_logic;
         }
 
         clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
         if (!attacking_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose region to attack from", 0);
+                           "Choose a region to attack from.", 0);
         } else if (!defending_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose enemy-controlled region to attack", 0);
+                           "Choose an enemy-controlled region to attack.", 0);
         } else {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            "Choose how many armies you want to attack with "
-                           "(1, 2, or 3)", 0);
+                           "(1, 2, or 3).", 0);
             integer_prompt = ATTACK_TROOPS_COUNT;
         }
         platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
@@ -1888,14 +2417,14 @@ void handle_game(void)
         integer_prompt_done = NO_PROMPT;
 
         if (attacking_count < 1 || attacking_count > 3) {
-            invalid_move("Invalid number of attacking armies");
+            invalid_move("Invalid number of attacking armies.");
             attacking_count = 0;
         } else if (regions[attacking_region].troops < attacking_count) {
-            invalid_move("Not enough armies in the attacking region");
+            invalid_move("Insufficient armies in the attacking region.");
             attacking_count = 0;
         } else if (regions[attacking_region].troops < attacking_count + 1) {
             invalid_move("Cannot attack with this many armies (at least one "
-                         "must be left behind)");
+                         "must be left behind).");
             attacking_count = 0;
         }
 
@@ -1921,7 +2450,7 @@ void handle_game(void)
                             STATUS_TODO_H);
                 font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                                "Choose how many armies you want to move to the "
-                               "conquered region", 0);
+                               "conquered region.", 0);
                 platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
                                         STATUS_TODO_H);
 
@@ -1940,9 +2469,9 @@ void handle_game(void)
                      headings_w * sizeof(uint32_t), STATUS_X, STATUS_PHASE_Y,
                      fbw, STATUS_PHASE_Y + STATUS_PHASE_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose region to attack from", 0);
+                           "Choose a region to attack from.", 0);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_INFO_Y,
-                           "Press the space bar to end the battle phase",
+                           "Press the space bar to end the battle phase.",
                            0);
             platform_funcs.fb_flush(STATUS_X, 0, fbw - STATUS_X,
                                     STATUS_INFO_Y + STATUS_INFO_H);
@@ -1960,11 +2489,11 @@ void handle_game(void)
         integer_prompt_done = NO_PROMPT;
 
         if (regions[attacking_region].troops < moving_troops) {
-            invalid_move("Not enough armies in the attacking region");
+            invalid_move("Insufficient armies in the attacking region.");
             integer_prompt = CLAIM_TROOPS_COUNT;
             goto post_logic;
         } else if (regions[attacking_region].troops == moving_troops) {
-            invalid_move("At least one army has to stay behind");
+            invalid_move("At least one army has to stay behind.");
             integer_prompt = CLAIM_TROOPS_COUNT;
             goto post_logic;
         }
@@ -2021,9 +2550,9 @@ void handle_game(void)
             clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
                            p == PLAYER ? "Choose how many armies you want to "
-                                         "defend with (1 or 2)"
+                                         "defend with (1 or 2)."
                                        : "Choose how many neutral armies "
-                                         "should be used for defense (1 or 2)",
+                                         "should be used for defense (1 or 2).",
                            0);
             platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
                                     STATUS_TODO_Y);
@@ -2031,9 +2560,9 @@ void handle_game(void)
             // Notify the player because they may have stopped paying
             // attention during their opponent's turn
             important_message(p == PLAYER ? "Choose how many armies you want "
-                                            "to defend with"
+                                            "to defend with."
                                           : "Choose how many neutral armies "
-                                            "should be used for defense",
+                                            "should be used for defense.",
                               false);
 
             integer_prompt = DEFENSE_TROOPS_COUNT;
@@ -2044,11 +2573,11 @@ void handle_game(void)
             defending_count = integer_prompt_value;
 
             if (defending_count < 1 || defending_count > 2) {
-                invalid_move("Invalid number of defending armies");
+                invalid_move("Invalid number of defending armies.");
                 integer_prompt = DEFENSE_TROOPS_COUNT;
                 defending_count = 0;
             } else if (regions[defending_region].troops < defending_count) {
-                invalid_move("Not enough armies in the defending region");
+                invalid_move("Not enough armies in the defending region.");
                 integer_prompt = DEFENSE_TROOPS_COUNT;
                 defending_count = 0;
             }
@@ -2071,11 +2600,11 @@ void handle_game(void)
 
         if (!origin_region) {
             if (regions[focused_region].taken_by != PLAYER) {
-                invalid_move("This region does not belong to you");
+                invalid_move("This region does not belong to you.");
                 goto post_logic;
             } else if (regions[focused_region].troops < 2) {
                 invalid_move("To move troops, you need at least two armies "
-                             "in the origin region");
+                             "in the origin region.");
                 goto post_logic;
             }
 
@@ -2092,7 +2621,7 @@ void handle_game(void)
             queue_sfx(&beep2_snd);
         } else if (!destination_region) {
             if (regions[focused_region].taken_by != PLAYER) {
-                invalid_move("This region does not belong to you");
+                invalid_move("This region does not belong to you.");
                 goto post_logic;
             }
             // No empty regions
@@ -2101,7 +2630,7 @@ void handle_game(void)
             bool is_connected = friendly_connection(origin_region,
                                                     focused_region);
             if (!is_connected) {
-                invalid_move("You cannot move troops through enemy regions");
+                invalid_move("You cannot move troops through enemy regions.");
                 goto post_logic;
             }
 
@@ -2113,23 +2642,23 @@ void handle_game(void)
             destination_region = NULL_REGION;
             queue_sfx(&beep2_snd);
         } else {
-            invalid_move("Movement is allowed only between two regions");
+            invalid_move("Movement is allowed only between two regions.");
             goto post_logic;
         }
 
         clear_to_bg(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X, STATUS_TODO_H);
         if (!origin_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose one region to move troops from", 0);
+                           "Choose one region to move troops from.", 0);
         } else if (!destination_region) {
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose one region to move troops to", 0);
+                           "Choose one region to move troops to.", 0);
         } else {
             // Should have been caught by the conditions above
             assert(destination_region != origin_region);
 
             font_draw_text(fb, fbw, fbh, fb_stride, STATUS_X, STATUS_TODO_Y,
-                           "Choose how many armies you want to move", 0);
+                           "Choose how many armies you want to move.", 0);
             integer_prompt = MOVE_TROOPS_COUNT;
         }
         platform_funcs.fb_flush(STATUS_X, STATUS_TODO_Y, fbw - STATUS_X,
@@ -2147,11 +2676,11 @@ void handle_game(void)
         integer_prompt_done = NO_PROMPT;
 
         if (regions[origin_region].troops < moving_troops) {
-            invalid_move("Not enough armies in the origin region");
+            invalid_move("Insufficient armies in the origin region.");
             integer_prompt = MOVE_TROOPS_COUNT;
             goto post_logic;
         } else if (regions[origin_region].troops == moving_troops) {
-            invalid_move("At least one army has to stay behind");
+            invalid_move("At least one army has to stay behind.");
             integer_prompt = MOVE_TROOPS_COUNT;
             goto post_logic;
         }

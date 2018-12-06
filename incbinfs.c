@@ -14,6 +14,11 @@
 
 void init_incbinfs(void)
 {
+    /* Usually the name in the FS (the string) is just the symbol name
+     * (i.e. the name of the original file with underscores instead of
+     * non-\w characters) translated back to a normal filename.
+     * Exceptions are marked with exclamation mark comments. */
+
     REF("/abort.png", abort_png);
     REF("/army-none.png", army_none_png);
     REF("/army-blue-1.png", army_blue_1_png);
@@ -321,6 +326,13 @@ void init_incbinfs(void)
     REF("/beep2.ogg", beep2_ogg);
     REF("/bg.png", bg_png);
     REF("/capture.ogg", capture_ogg);
+    REF("/card-bg.png", card_bg_png);
+    REF("/card-design-0.png", card_infantry_png);  // !
+    REF("/card-design-1.png", card_cavalry_png);   // !
+    REF("/card-design-2.png", card_artillery_png); // !
+    REF("/card-design-3.png", card_wildcard_png);  // !
+    REF("/card-hover.png", card_hover_png);
+    REF("/card-selected.png", card_selected_png);
     REF("/cursor.png", cursor_png);
     REF("/defeat.png", defeat_png);
     REF("/destination-region.png", destination_region_png);
@@ -344,6 +356,7 @@ void init_incbinfs(void)
     REF("/region-areas.png", region_areas_png);
     REF("/reinforcements.ogg", reinforcements_ogg);
     REF("/reinforcements.png", reinforcements_png);
+    REF("/trade-in.png", trade_in_png);
     REF("/victory.ogg", victory_ogg);
     REF("/victory.png", victory_png);
     REF("/waiting-for-other.png", waiting_for_other_png);

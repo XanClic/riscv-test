@@ -61,6 +61,7 @@ typedef enum RegionID {
 } RegionID;
 
 typedef struct Region {
+    const char *name;
     ContinentID continent;
     int neighbor_count; // Set at runtime
     RegionID neighbors[8];
