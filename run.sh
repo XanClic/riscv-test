@@ -11,4 +11,4 @@ $QEMU \
     -device virtio-keyboard-device \
     -device virtio-tablet-device \
     $@ \
-    | aplay -B 50000 # This MUST be higher than BUFFER_MS in virt-sound.c
+    | aplay -q -B 50000 # This MUST be higher than BUFFER_MS in virt-sound.c
