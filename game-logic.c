@@ -1358,7 +1358,12 @@ static void ai_move(Party p)
                 bool has_enemy_neighbors = false;
                 for (int i = 0; i < regions[attacking_region].neighbor_count; i++) {
                     RegionID n = regions[attacking_region].neighbors[i];
-                    if (regions[n].taken_by != p) {
+                    if (regions[n].taken_by != p
+#ifdef HAVE_NEUTRAL
+                        && regions[n].taken_by != NEUTRAL
+#endif
+                       )
+                    {
                         has_enemy_neighbors = true;
                         break;
                     }
