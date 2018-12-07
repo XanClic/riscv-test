@@ -2034,10 +2034,10 @@ void handle_game(void)
 
         if (focused_card >= 0 && lbuttondown) {
             if (party_hand_card(PLAYER, focused_card)->selected) {
-                queue_sfx(&beep1_snd);
+                queue_sfx(&beep2_snd);
                 party_hand_deselect_card(PLAYER, focused_card);
             } else {
-                queue_sfx(&beep2_snd);
+                queue_sfx(&beep1_snd);
                 party_hand_select_card(PLAYER, focused_card);
             }
             refresh_hand();
