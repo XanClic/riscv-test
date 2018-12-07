@@ -514,6 +514,7 @@ static void refresh_hand(void)
     if (p == PARTY_COUNT) {
         platform_funcs.fb_flush(STATUS_X, STATUS_HAND_Y, fbw - STATUS_X,
                                 STATUS_HAND_H);
+        return;
     }
 
     if (p == PLAYER) {
