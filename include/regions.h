@@ -22,10 +22,10 @@ typedef enum Party {
 typedef enum ContinentID {
     NULL_CONTINENT,
 
-    ERIADOR,
-    ROHAN_RHOVANION,
-    GONDOR,
-    MORDOR,
+    AKHEN,
+    ANGSHIRE,
+    MOTOHI,
+    XINDAO,
 
     CONTINENT_COUNT
 } ContinentID;
@@ -33,29 +33,29 @@ typedef enum ContinentID {
 typedef enum RegionID {
     NULL_REGION,
 
-    // Eriador
-    MITHLOND,
-    FORNARNOR,
-    SHIRE,
-    CARDOLAN,
-    IMLADRIS,
-    ANGRENOST,
+    // Arkhen
+    NORGROST,
+    LUNEN,
+    BARLENIEN,
+    SEEBOR,
 
-    // Rohan-Rhovanion
-    TAUR_E_NDAEDALOS,
-    LOTHLORIEN,
-    FANGORN,
-    ROHAN,
-    RHOVANION,
+    // Angshire
+    BOTFORD,
+    PINSHIRE,
+    PETONY,
+    SUNDERLO,
+    UXBRID,
 
-    // Gondor
-    PINNATH_GELIN,
-    MINAS_TIRITH,
-    ITHILIEN,
+    // Motohi
+    KITASHIMA,
+    SHOUZU,
+    KUNUCHI,
+    HIRANAGA,
 
-    // Mordor
-    GORGOROTH,
-    NURN,
+    // Xindao
+    YUAN_DO,
+    MU_ZHANG,
+    XIAMO,
 
     REGION_COUNT
 } RegionID;

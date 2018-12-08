@@ -6,147 +6,146 @@
 
 
 struct Region regions[REGION_COUNT] = {
-    [MITHLOND] = {
-        .name = "Grey Havens",
-        .continent = ERIADOR,
-        .neighbors = { FORNARNOR, SHIRE, CARDOLAN },
-        .troops_pos = { 170, 229 },
+    [NORGROST] = {
+        .name = "Norgrost",
+        .continent = AKHEN,
+        .neighbors = { LUNEN,
+                       KITASHIMA },
+        .troops_pos = { 192, 67 },
     },
 
-    [FORNARNOR] = {
-        .name = "North Arnor",
-        .continent = ERIADOR,
-        .neighbors = { MITHLOND, SHIRE, CARDOLAN, IMLADRIS,
-                       TAUR_E_NDAEDALOS },
-        .troops_pos = { 480, 156 },
+    [LUNEN] = {
+        .name = "Lunen",
+        .continent = AKHEN,
+        .neighbors = { NORGROST, BARLENIEN, SEEBOR,
+                       BOTFORD },
+        .troops_pos = { 193, 280 },
     },
 
-    [SHIRE] = {
-        .name = "Shire",
-        .continent = ERIADOR,
-        .neighbors = { MITHLOND, FORNARNOR, CARDOLAN },
-        .troops_pos = { 385, 303 },
+    [BARLENIEN] = {
+        .name = "Barlenien",
+        .continent = AKHEN,
+        .neighbors = { LUNEN, SEEBOR,
+                       PINSHIRE },
+        .troops_pos = { 240, 369 },
     },
 
-    [CARDOLAN] = {
-        .name = "Cardolan",
-        .continent = ERIADOR,
-        .neighbors = { MITHLOND, FORNARNOR, SHIRE, IMLADRIS, ANGRENOST },
-        .troops_pos = { 460, 373 },
-    },
-
-    [IMLADRIS] = {
-        .name = "Rivendell",
-        .continent = ERIADOR,
-        .neighbors = { FORNARNOR, CARDOLAN, ANGRENOST,
-                       TAUR_E_NDAEDALOS, LOTHLORIEN },
-        .troops_pos = { 653, 313 },
-    },
-
-    [ANGRENOST] = {
-        .name = "Isengard",
-        .continent = ERIADOR,
-        .neighbors = { CARDOLAN, IMLADRIS,
-                       LOTHLORIEN, FANGORN, ROHAN, PINNATH_GELIN },
-        .troops_pos = { 525, 550 },
+    [SEEBOR] = {
+        .name = "Seebor",
+        .continent = AKHEN,
+        .neighbors = { LUNEN, BARLENIEN,
+                       PETONY,
+                       YUAN_DO },
+        .troops_pos = { 311, 350 },
     },
 
 
-    [TAUR_E_NDAEDALOS] = {
-        .name = "Mirkwood",
-        .continent = ROHAN_RHOVANION,
-        .neighbors = { FORNARNOR, IMLADRIS,
-                       LOTHLORIEN, RHOVANION },
-        .troops_pos = { 861, 252 },
+    [BOTFORD] = {
+        .name = "Botford",
+        .continent = ANGSHIRE,
+        .neighbors = { LUNEN,
+                       PINSHIRE, SUNDERLO },
+        .troops_pos = { 75, 581 },
     },
 
-    [LOTHLORIEN] = {
-        .name = "Lothlorien",
-        .continent = ROHAN_RHOVANION,
-        .neighbors = { IMLADRIS, ANGRENOST,
-                       TAUR_E_NDAEDALOS, FANGORN, ROHAN, RHOVANION },
-        .troops_pos = { 718, 431 },
+    [PINSHIRE] = {
+        .name = "Pinshire",
+        .continent = ANGSHIRE,
+        .neighbors = { BARLENIEN,
+                       BOTFORD, PETONY, SUNDERLO, UXBRID },
+        .troops_pos = { 254, 657 },
     },
 
-    [FANGORN] = {
-        .name = "Fangorn",
-        .continent = ROHAN_RHOVANION,
-        .neighbors = { ANGRENOST,
-                       LOTHLORIEN, ROHAN },
-        .troops_pos = { 684, 516 },
+    [PETONY] = {
+        .name = "Petony",
+        .continent = ANGSHIRE,
+        .neighbors = { SEEBOR,
+                       PINSHIRE, UXBRID,
+                       YUAN_DO },
+        .troops_pos = { 410, 674 },
     },
 
-    [ROHAN] = {
-        .name = "Rohan",
-        .continent = ROHAN_RHOVANION,
-        .neighbors = { ANGRENOST,
-                       LOTHLORIEN, FANGORN, RHOVANION,
-                       PINNATH_GELIN, MINAS_TIRITH, ITHILIEN },
-        .troops_pos = { 766, 606 },
+    [SUNDERLO] = {
+        .name = "Sunderlo",
+        .continent = ANGSHIRE,
+        .neighbors = { BOTFORD, PINSHIRE, UXBRID },
+        .troops_pos = { 184, 768 },
     },
 
-    [RHOVANION] = {
-        .name = "Rhovanion",
-        .continent = ROHAN_RHOVANION,
-        .neighbors = { TAUR_E_NDAEDALOS, LOTHLORIEN, ROHAN,
-                       ITHILIEN,
-                       GORGOROTH, NURN },
-        .troops_pos = { 1141, 395 },
-    },
-
-
-    [PINNATH_GELIN] = {
-        .name = "Pinnath Gelin",
-        .continent = GONDOR,
-        .neighbors = { ANGRENOST,
-                       ROHAN,
-                       MINAS_TIRITH },
-        .troops_pos = { 626, 712 },
-    },
-
-    [MINAS_TIRITH] = {
-        .name = "Minas Tirith",
-        .continent = GONDOR,
-        .neighbors = { ROHAN,
-                       PINNATH_GELIN, ITHILIEN },
-        .troops_pos = { 817, 812 },
-    },
-
-    [ITHILIEN] = {
-        .name = "Ithilien",
-        .continent = GONDOR,
-        .neighbors = { ROHAN, RHOVANION,
-                       MINAS_TIRITH,
-                       GORGOROTH, NURN },
-        .troops_pos = { 940, 827 },
+    [UXBRID] = {
+        .name = "Uxbrid",
+        .continent = ANGSHIRE,
+        .neighbors = { PINSHIRE, PETONY, SUNDERLO,
+                       MU_ZHANG },
+        .troops_pos = { 333, 780 },
     },
 
 
-    [GORGOROTH] = {
-        .name = "Gorgoroth",
-        .continent = MORDOR,
-        .neighbors = { RHOVANION,
-                       ITHILIEN,
-                       NURN },
-        .troops_pos = { 1093, 711 },
+    [KITASHIMA] = {
+        .name = "Kitashima",
+        .continent = MOTOHI,
+        .neighbors = { NORGROST,
+                       SHOUZU, KUNUCHI },
+        .troops_pos = { 1037, 118 },
     },
 
-    [NURN] = {
-        .name = "Nurn",
-        .continent = MORDOR,
-        .neighbors = { RHOVANION,
-                       ITHILIEN,
-                       GORGOROTH },
-        .troops_pos = { 1170, 810 },
+    [SHOUZU] = {
+        .name = "Shouzu",
+        .continent = MOTOHI,
+        .neighbors = { KITASHIMA, KUNUCHI, HIRANAGA,
+                       YUAN_DO, MU_ZHANG, XIAMO },
+        .troops_pos = { 1003, 446 },
+    },
+
+    [KUNUCHI] = {
+        .name = "Kunuchi",
+        .continent = MOTOHI,
+        .neighbors = { KITASHIMA, SHOUZU, HIRANAGA },
+        .troops_pos = { 1178, 309 },
+    },
+
+    [HIRANAGA] = {
+        .name = "Hiranaga",
+        .continent = MOTOHI,
+        .neighbors = { SHOUZU, KUNUCHI,
+                       XIAMO },
+        .troops_pos = { 1246, 403 },
+    },
+
+
+    [YUAN_DO] = {
+        .name = "Yuan Do",
+        .continent = XINDAO,
+        .neighbors = { SEEBOR,
+                       PETONY,
+                       SHOUZU },
+        .troops_pos = { 705, 433 },
+    },
+
+    [MU_ZHANG] = {
+        .name = "Mu Zhang",
+        .continent = XINDAO,
+        .neighbors = { UXBRID,
+                       SHOUZU,
+                       XIAMO },
+        .troops_pos = { 1116, 777 },
+    },
+
+    [XIAMO] = {
+        .name = "Xiamo",
+        .continent = XINDAO,
+        .neighbors = { SHOUZU, HIRANAGA,
+                       MU_ZHANG },
+        .troops_pos = { 1239, 627 },
     },
 };
 
 
 int continent_bonuses[CONTINENT_COUNT] = {
-    [ERIADOR] = 4,
-    [ROHAN_RHOVANION] = 3,
-    [GONDOR] = 2,
-    [MORDOR] = 1,
+    [AKHEN] = 2,
+    [ANGSHIRE] = 3,
+    [MOTOHI] = 2,
+    [XINDAO] = 2,
 };
 
 
