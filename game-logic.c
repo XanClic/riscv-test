@@ -1248,13 +1248,28 @@ static bool get_ai_battle_params(Party p, RegionID *attacking,
                 }
             }
 
-            int score = regions[r].troops - regions[d].troops;
+            int diff = regions[r].troops - regions[d].troops;
+
+            int score = diff;
             if (last_in_continent) {
-                score += 5;
+                if (regions[r].troops >= 4) {
+                    // Sufficient troops to attack with 3
+                    score += 5;
+                } else if (diff > 0) {
+                    // Risky, but let's try
+                    score += 2;
+                }
             }
 
             // Try to keep others from taking continents
-            score += MAX(0, 10 * (2 * ricobto - ric) / ric);
+            int x = MAX(0, 10 * (2 * ricobto - ric) / ric);
+            if (regions[r].troops >= 4) {
+                score += x;
+            } else if (diff > 0) {
+                score += 2 * x / 3;
+            } else {
+                score += x / 3;
+            }
 
             if (score > 0) {
                 // If attacking makes sense and we have a card with
@@ -1267,23 +1282,18 @@ static bool get_ai_battle_params(Party p, RegionID *attacking,
                 }
             }
 
-            score -= rand() % 4;
+            score -= rand() % 3;
 
             if (score > best_score) {
                 best_score = score;
                 *attacking = r;
                 *attacked = d;
-
-                if (regions[d].troops == 1 && regions[r].troops < 5) {
-                    *attack_count = MIN(2, regions[r].troops - 1);
-                } else {
-                    *attack_count = MIN(3, regions[r].troops - 1);
-                }
+                *attack_count = MIN(3, regions[r].troops - 1);
             }
         }
     }
 
-    if (best_score <= -(rand() % 4)) {
+    if (best_score <= -(rand() % 3)) {
         *attacking = NULL_REGION;
         *attacked = NULL_REGION;
         *attack_count = 0;
