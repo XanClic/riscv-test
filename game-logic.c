@@ -2691,7 +2691,11 @@ void handle_game(void)
         int moving_troops = integer_prompt_value;
         integer_prompt_done = NO_PROMPT;
 
-        if (regions[origin_region].troops < moving_troops) {
+        if (moving_troops <= 0) {
+            invalid_move("Invalid number of armies to move.");
+            integer_prompt = MOVE_TROOPS_COUNT;
+            goto post_logic;
+        } else if (regions[origin_region].troops < moving_troops) {
             invalid_move("Insufficient armies in the origin region.");
             integer_prompt = MOVE_TROOPS_COUNT;
             goto post_logic;
