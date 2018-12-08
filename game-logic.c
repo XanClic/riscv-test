@@ -639,7 +639,7 @@ static bool has_any_card_set(Party p)
         }
     }
 
-    return has_single_set || different_designs == CARD_DESIGN_COUNT;
+    return has_single_set || different_designs >= CARD_DESIGN_COUNT;
 }
 
 
