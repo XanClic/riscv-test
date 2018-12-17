@@ -10,7 +10,7 @@ struct Region regions[REGION_COUNT] = {
         .name = "Norgrost",
         .continent = AKHEN,
         .neighbors = { LUNEN,
-                       KITASHIMA },
+                       KYUUEMPI },
         .troops_pos = { 192, 67 },
     },
 
@@ -26,7 +26,7 @@ struct Region regions[REGION_COUNT] = {
         .name = "Barlenien",
         .continent = AKHEN,
         .neighbors = { LUNEN, SEEBOR,
-                       PINSHIRE },
+                       CWOM },
         .troops_pos = { 240, 369 },
     },
 
@@ -35,7 +35,7 @@ struct Region regions[REGION_COUNT] = {
         .continent = AKHEN,
         .neighbors = { LUNEN, BARLENIEN,
                        PETONY,
-                       YUAN_DO },
+                       YUAN_DOU },
         .troops_pos = { 311, 350 },
     },
 
@@ -44,12 +44,12 @@ struct Region regions[REGION_COUNT] = {
         .name = "Botford",
         .continent = ANGSHIRE,
         .neighbors = { LUNEN,
-                       PINSHIRE, SUNDERLO },
+                       CWOM, SUNDERLO },
         .troops_pos = { 75, 581 },
     },
 
-    [PINSHIRE] = {
-        .name = "Pinshire",
+    [CWOM] = {
+        .name = "Cwom",
         .continent = ANGSHIRE,
         .neighbors = { BARLENIEN,
                        BOTFORD, PETONY, SUNDERLO, UXBRID },
@@ -60,30 +60,30 @@ struct Region regions[REGION_COUNT] = {
         .name = "Petony",
         .continent = ANGSHIRE,
         .neighbors = { SEEBOR,
-                       PINSHIRE, UXBRID,
-                       YUAN_DO },
+                       CWOM, UXBRID,
+                       YUAN_DOU },
         .troops_pos = { 410, 674 },
     },
 
     [SUNDERLO] = {
         .name = "Sunderlo",
         .continent = ANGSHIRE,
-        .neighbors = { BOTFORD, PINSHIRE, UXBRID },
+        .neighbors = { BOTFORD, CWOM, UXBRID },
         .troops_pos = { 184, 768 },
     },
 
     [UXBRID] = {
         .name = "Uxbrid",
         .continent = ANGSHIRE,
-        .neighbors = { PINSHIRE, PETONY, SUNDERLO,
+        .neighbors = { CWOM, PETONY, SUNDERLO,
                        MU_ZHANG },
         .troops_pos = { 333, 780 },
     },
 
 
-    [KITASHIMA] = {
-        .name = "Kitashima",
-        .continent = MOTOHI,
+    [KYUUEMPI] = {
+        .name = "Kyuuempi",
+        .continent = TSUKIMOTO,
         .neighbors = { NORGROST,
                        SHOUZU, KUNUCHI },
         .troops_pos = { 1037, 118 },
@@ -91,30 +91,30 @@ struct Region regions[REGION_COUNT] = {
 
     [SHOUZU] = {
         .name = "Shouzu",
-        .continent = MOTOHI,
-        .neighbors = { KITASHIMA, KUNUCHI, HIRANAGA,
-                       YUAN_DO, MU_ZHANG, XIAMO },
+        .continent = TSUKIMOTO,
+        .neighbors = { KYUUEMPI, KUNUCHI, HIRANAGA,
+                       YUAN_DOU, MU_ZHANG, XIAMO },
         .troops_pos = { 1003, 446 },
     },
 
     [KUNUCHI] = {
         .name = "Kunuchi",
-        .continent = MOTOHI,
-        .neighbors = { KITASHIMA, SHOUZU, HIRANAGA },
+        .continent = TSUKIMOTO,
+        .neighbors = { KYUUEMPI, SHOUZU, HIRANAGA },
         .troops_pos = { 1178, 309 },
     },
 
     [HIRANAGA] = {
         .name = "Hiranaga",
-        .continent = MOTOHI,
+        .continent = TSUKIMOTO,
         .neighbors = { SHOUZU, KUNUCHI,
                        XIAMO },
         .troops_pos = { 1246, 403 },
     },
 
 
-    [YUAN_DO] = {
-        .name = "Yuan Do",
+    [YUAN_DOU] = {
+        .name = "Yuan Dou",
         .continent = XINDAO,
         .neighbors = { SEEBOR,
                        PETONY,
@@ -144,7 +144,7 @@ struct Region regions[REGION_COUNT] = {
 int continent_bonuses[CONTINENT_COUNT] = {
     [AKHEN] = 2,
     [ANGSHIRE] = 3,
-    [MOTOHI] = 2,
+    [TSUKIMOTO] = 2,
     [XINDAO] = 2,
 };
 

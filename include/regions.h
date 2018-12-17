@@ -24,7 +24,7 @@ typedef enum ContinentID {
 
     AKHEN,
     ANGSHIRE,
-    MOTOHI,
+    TSUKIMOTO,
     XINDAO,
 
     CONTINENT_COUNT
@@ -41,19 +41,19 @@ typedef enum RegionID {
 
     // Angshire
     BOTFORD,
-    PINSHIRE,
+    CWOM,
     PETONY,
     SUNDERLO,
     UXBRID,
 
-    // Motohi
-    KITASHIMA,
+    // Tsukimoto
+    KYUUEMPI,
     SHOUZU,
     KUNUCHI,
     HIRANAGA,
 
     // Xindao
-    YUAN_DO,
+    YUAN_DOU,
     MU_ZHANG,
     XIAMO,
 
