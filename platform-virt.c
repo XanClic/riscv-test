@@ -15,8 +15,9 @@
 
 bool init_platform_virt(void)
 {
-    struct VirtIOControlRegs *virtio_control =
+    struct VirtIOControlRegs *virtio_base =
         (struct VirtIOControlRegs *)VPBA_VIRTIO_BASE;
+    struct VirtIOControlRegs *virtio_control = virtio_base;
 
     if (virtio_control->magic != STR_TO_U32("virt")) {
         return false;
@@ -28,7 +29,13 @@ bool init_platform_virt(void)
 
     init_sifive_clint(VPBA_SIFIVE_CLINT);
 
-    while (virtio_control->magic == STR_TO_U32("virt")) {
+    /*
+     * TODO: Instead of artificially limiting the number of devices
+     *       here, maybe catch faults instead.
+     */
+    while (virtio_control - virtio_base < 8 &&
+           virtio_control->magic == STR_TO_U32("virt"))
+    {
         init_virtio_device(virtio_control);
         virtio_control++;
     }
